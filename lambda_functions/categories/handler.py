@@ -3,10 +3,13 @@ import os
 import boto3
 from datetime import datetime
 import uuid
+import sys
+sys.path.append('..')
+from constants import CATEGORIES_TABLE, ERROR_CODES, STATUS_CODES, CORS_HEADERS
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-categories_table = dynamodb.Table(os.environ['CATEGORIES_TABLE'])  # type: ignore
+categories_table = dynamodb.Table(os.environ[CATEGORIES_TABLE])  # type: ignore
 
 def get_all_categories():
     """Get all categories"""

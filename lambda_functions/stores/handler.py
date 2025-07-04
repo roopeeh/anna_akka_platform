@@ -3,10 +3,13 @@ import os
 import boto3
 from datetime import datetime
 import uuid
+import sys
+sys.path.append('..')
+from constants import STORES_TABLE, ERROR_CODES, STATUS_CODES, CORS_HEADERS, INDEX_NAMES
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-stores_table = dynamodb.Table(os.environ['STORES_TABLE'])
+stores_table = dynamodb.Table(os.environ[STORES_TABLE])  # type: ignore
 
 def get_stores_with_pagination(page=1, limit=10, search=None, is_open=None):
     """Get stores with pagination and filtering"""
@@ -167,18 +170,209 @@ def handler(event, context):
             
     except Exception as e:
         return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-            },
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
             'body': json.dumps({
                 'error': {
-                    'code': 'INTERNAL_ERROR',
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
                     'message': str(e)
                 }
             })
         }
-# ... rest of the file ... 
+
+def handle_get_stores(query_params):
+    """Handle GET /stores"""
+    try:
+        page = int(query_params.get('page', 1))
+        limit = int(query_params.get('limit', 10))
+        search = query_params.get('search')
+        is_open = query_params.get('is_open')
+        
+        result = get_stores_with_pagination(page, limit, search, is_open)
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps(result)
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_get_store(store_id):
+    """Handle GET /stores/{id}"""
+    try:
+        store = get_store_by_id(store_id)
+        if not store:
+            return {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Store not found'
+                    }
+                })
+            }
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'store': store})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_create_store(body):
+    """Handle POST /stores"""
+    try:
+        # Validate required fields
+        if not body.get('name') or not body.get('address'):
+            return {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Name and address are required'
+                    }
+                })
+            }
+        
+        # In a real app, you'd get the owner_id from the JWT token
+        owner_id = "mock-owner-id"
+        
+        store = create_store(body, owner_id)
+        
+        return {
+            'statusCode': STATUS_CODES['CREATED'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'store': store})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_update_store(store_id, body):
+    """Handle PUT /stores/{id}"""
+    try:
+        # In a real app, you'd get the owner_id from the JWT token
+        owner_id = "mock-owner-id"
+        
+        store = update_store(store_id, body, owner_id)
+        if not store:
+            return {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Store not found or access denied'
+                    }
+                })
+            }
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'store': store})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_delete_store(store_id):
+    """Handle DELETE /stores/{id}"""
+    try:
+        # In a real app, you'd get the owner_id from the JWT token
+        owner_id = "mock-owner-id"
+        
+        store = get_store_by_id(store_id)
+        if not store or store['owner_id'] != owner_id:
+            return {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Store not found or access denied'
+                    }
+                })
+            }
+        
+        stores_table.delete_item(Key={'id': store_id})
+        
+        return {
+            'statusCode': STATUS_CODES['NO_CONTENT'],
+            'headers': CORS_HEADERS,
+            'body': ''
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_get_owner_stores():
+    """Handle GET /stores/owner"""
+    try:
+        # In a real app, you'd get the owner_id from the JWT token
+        owner_id = "mock-owner-id"
+        
+        stores = get_stores_by_owner(owner_id)
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'stores': stores})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        } 

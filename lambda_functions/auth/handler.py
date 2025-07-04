@@ -3,6 +3,8 @@ import os
 import boto3
 from datetime import datetime
 import uuid
+import sys
+sys.path.append('..')
 from constants import USERS_TABLE, ERROR_CODES, STATUS_CODES, CORS_HEADERS, USER_TYPES, MOCK_VALUES
 
 # Initialize DynamoDB client

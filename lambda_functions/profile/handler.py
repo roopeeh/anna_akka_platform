@@ -2,10 +2,13 @@ import json
 import os
 import boto3
 from datetime import datetime
+import sys
+sys.path.append('..')
+from constants import USERS_TABLE, ERROR_CODES, STATUS_CODES, CORS_HEADERS, ALLOWED_UPDATE_FIELDS
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-users_table = dynamodb.Table(os.environ['USERS_TABLE'])
+users_table = dynamodb.Table(os.environ[USERS_TABLE])
 
 def get_user_by_id(user_id):
     """Get user by ID from DynamoDB"""

@@ -3,10 +3,13 @@ import os
 import boto3
 from datetime import datetime
 import uuid
+import sys
+sys.path.append('..')
+from constants import PRODUCTS_TABLE, ERROR_CODES, STATUS_CODES, CORS_HEADERS, INDEX_NAMES, ALLOWED_UPDATE_FIELDS
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-products_table = dynamodb.Table(os.environ['PRODUCTS_TABLE'])
+products_table = dynamodb.Table(os.environ[PRODUCTS_TABLE])  # type: ignore
 
 def get_products_with_pagination(page=1, limit=20, store_id=None, category_id=None, search=None, min_price=None, max_price=None, in_stock=None):
     """Get products with pagination and filtering"""
@@ -233,16 +236,235 @@ def handler(event, context):
             
     except Exception as e:
         return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-            },
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
             'body': json.dumps({
                 'error': {
-                    'code': 'INTERNAL_ERROR',
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_get_products(query_params):
+    """Handle GET /products"""
+    try:
+        page = int(query_params.get('page', 1))
+        limit = int(query_params.get('limit', 20))
+        store_id = query_params.get('store_id')
+        category_id = query_params.get('category_id')
+        search = query_params.get('search')
+        min_price = float(query_params.get('min_price')) if query_params.get('min_price') else None
+        max_price = float(query_params.get('max_price')) if query_params.get('max_price') else None
+        in_stock = query_params.get('in_stock')
+        if in_stock is not None:
+            in_stock = in_stock.lower() == 'true'
+        
+        result = get_products_with_pagination(
+            page, limit, store_id, category_id, search, min_price, max_price, in_stock
+        )
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps(result)
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_get_product(product_id):
+    """Handle GET /products/{id}"""
+    try:
+        product = get_product_by_id(product_id)
+        if not product:
+            return {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Product not found'
+                    }
+                })
+            }
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'product': product})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_get_store_products(store_id, query_params):
+    """Handle GET /stores/{storeId}/products"""
+    try:
+        page = int(query_params.get('page', 1))
+        limit = int(query_params.get('limit', 20))
+        category_id = query_params.get('category_id')
+        search = query_params.get('search')
+        
+        result = get_store_products(store_id, page, limit, category_id, search)
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps(result)
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_create_product(body, store_id):
+    """Handle POST /stores/{storeId}/products"""
+    try:
+        # Validate required fields
+        if not body.get('name') or not body.get('price'):
+            return {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Name and price are required'
+                    }
+                })
+            }
+        
+        product = create_product(body, store_id)
+        
+        return {
+            'statusCode': STATUS_CODES['CREATED'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'product': product})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_update_product(product_id, body):
+    """Handle PUT /products/{id}"""
+    try:
+        # In a real app, you'd get the store_id from the JWT token or verify ownership
+        store_id = "mock-store-id"
+        
+        # Validate that at least one field is provided
+        allowed_fields = ALLOWED_UPDATE_FIELDS['PRODUCT']
+        update_data = {}
+        
+        for field in allowed_fields:
+            if field in body:
+                update_data[field] = body[field]
+        
+        if not update_data:
+            return {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'At least one field must be provided for update'
+                    }
+                })
+            }
+        
+        product = update_product(product_id, update_data, store_id)
+        if not product:
+            return {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Product not found or access denied'
+                    }
+                })
+            }
+        
+        return {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'product': product})
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_delete_product(product_id):
+    """Handle DELETE /products/{id}"""
+    try:
+        # In a real app, you'd get the store_id from the JWT token or verify ownership
+        store_id = "mock-store-id"
+        
+        product = get_product_by_id(product_id)
+        if not product or product['store_id'] != store_id:
+            return {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Product not found or access denied'
+                    }
+                })
+            }
+        
+        products_table.delete_item(Key={'id': product_id})
+        
+        return {
+            'statusCode': STATUS_CODES['NO_CONTENT'],
+            'headers': CORS_HEADERS,
+            'body': ''
+        }
+    except Exception as e:
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
                     'message': str(e)
                 }
             })
