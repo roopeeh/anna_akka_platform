@@ -8,7 +8,7 @@ from constants import USERS_TABLE, ERROR_CODES, STATUS_CODES, CORS_HEADERS, ALLO
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-users_table = dynamodb.Table(os.environ[USERS_TABLE])
+users_table = dynamodb.Table(os.environ[USERS_TABLE])  # type: ignore
 
 def get_user_by_id(user_id):
     """Get user by ID from DynamoDB"""

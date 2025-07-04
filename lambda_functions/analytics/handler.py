@@ -8,9 +8,9 @@ from constants import ORDERS_TABLE, PRODUCTS_TABLE, STORES_TABLE, ERROR_CODES, S
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-orders_table = dynamodb.Table(os.environ[ORDERS_TABLE])
-products_table = dynamodb.Table(os.environ[PRODUCTS_TABLE])
-stores_table = dynamodb.Table(os.environ[STORES_TABLE])
+orders_table = dynamodb.Table(os.environ[ORDERS_TABLE])  # type: ignore
+products_table = dynamodb.Table(os.environ[PRODUCTS_TABLE])  # type: ignore
+stores_table = dynamodb.Table(os.environ[STORES_TABLE])  # type: ignore
 
 def get_sales_analytics(store_id, period='month'):
     """Get sales analytics for a store"""
