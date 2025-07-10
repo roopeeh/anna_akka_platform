@@ -1,0 +1,938 @@
+{
+	"info": {
+		"_postman_id": "anna-akka-platform-collection",
+		"name": "Anna Akka Platform API",
+		"description": "Complete API collection for Anna Akka Platform including authentication, OTP verification, users, stores, products, available products, categories, orders, profile management, cart management, and analytics",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://4yvijqg3z3.execute-api.us-east-1.amazonaws.com/dev",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{auth_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+91 98765 43210\",\n  \"email\": \"user@example.com\",\n  \"name\": \"John Doe\",\n  \"roles\": [\"customer\"],\n  \"address\": \"123 Main St, Bangalore\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login with Phone Number",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+91 98765 43210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Check User by Phone Number",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/user/phone?phone=+91 98765 43210",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "user", "phone"],
+							"query": [
+								{
+									"key": "phone",
+									"value": "+91 98765 43210"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "OTP Authentication",
+			"item": [
+				{
+					"name": "Send OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+91 98765 43210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/otp/send",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "otp", "send"]
+						}
+					}
+				},
+				{
+					"name": "Verify OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+91 98765 43210\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/otp/verify",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "otp", "verify"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Profile Management",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile",
+							"host": ["{{base_url}}"],
+							"path": ["profile"]
+						}
+					}
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Smith\",\n  \"phone\": \"+91 98765 43211\",\n  \"address\": \"456 Oak Ave, Mumbai\",\n  \"email\": \"john.smith@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profile",
+							"host": ["{{base_url}}"],
+							"path": ["profile"]
+						}
+					}
+				},
+				{
+					"name": "Delete Profile",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile",
+							"host": ["{{base_url}}"],
+							"path": ["profile"]
+						}
+					}
+				},
+				{
+					"name": "Get Profile by Phone",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile/phone",
+							"host": ["{{base_url}}"],
+							"path": ["profile", "phone"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/categories",
+							"host": ["{{base_url}}"],
+							"path": ["categories"]
+						}
+					}
+				},
+				{
+					"name": "Create Category",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Pizza\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/categories",
+							"host": ["{{base_url}}"],
+							"path": ["categories"]
+						}
+					}
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/categories/category-123",
+							"host": ["{{base_url}}"],
+							"path": ["categories", "category-123"]
+						}
+					}
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Pizza Category\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/categories/category-123",
+							"host": ["{{base_url}}"],
+							"path": ["categories", "category-123"]
+						}
+					}
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/categories/category-123",
+							"host": ["{{base_url}}"],
+							"path": ["categories", "category-123"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Available Products",
+			"item": [
+				{
+					"name": "Get All Available Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/available-products?page=1&limit=20&category_id=pizza&search=margherita&min_price=10&max_price=20",
+							"host": ["{{base_url}}"],
+							"path": ["available-products"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "category_id",
+									"value": "pizza"
+								},
+								{
+									"key": "search",
+									"value": "margherita"
+								},
+								{
+									"key": "min_price",
+									"value": "10"
+								},
+								{
+									"key": "max_price",
+									"value": "20"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Available Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/available-products/b9238c4d-77e1-4585-b086-11af2dabdb59",
+							"host": ["{{base_url}}"],
+							"path": ["available-products", "b9238c4d-77e1-4585-b086-11af2dabdb59"]
+						}
+					}
+				},
+				{
+					"name": "Create Available Product",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"New Product\",\n  \"description\": \"A new product description\",\n  \"price\": 15.99,\n  \"unit\": \"piece\",\n  \"category_id\": \"pizza\",\n  \"image_url\": \"https://example.com/image.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/available-products",
+							"host": ["{{base_url}}"],
+							"path": ["available-products"]
+						}
+					}
+				},
+				{
+					"name": "Update Available Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Product Name\",\n  \"price\": 16.99,\n  \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/available-products/b9238c4d-77e1-4585-b086-11af2dabdb59",
+							"host": ["{{base_url}}"],
+							"path": ["available-products", "b9238c4d-77e1-4585-b086-11af2dabdb59"]
+						}
+					}
+				},
+				{
+					"name": "Delete Available Product",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/available-products/b9238c4d-77e1-4585-b086-11af2dabdb59",
+							"host": ["{{base_url}}"],
+							"path": ["available-products", "b9238c4d-77e1-4585-b086-11af2dabdb59"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Stores",
+			"item": [
+				{
+					"name": "Get All Stores",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stores?page=1&limit=10&search=pizza&is_open=true",
+							"host": ["{{base_url}}"],
+							"path": ["stores"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "pizza"
+								},
+								{
+									"key": "is_open",
+									"value": "true"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Store by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stores/store-123",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "store-123"]
+						}
+					}
+				},
+				{
+					"name": "Create Store",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Pizza Palace\",\n  \"address\": \"123 Main St, Bangalore\",\n  \"phone\": \"+91 98765 43210\",\n  \"delivery_time\": \"30-45 min\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/stores",
+							"host": ["{{base_url}}"],
+							"path": ["stores"]
+						}
+					}
+				},
+				{
+					"name": "Update Store",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Pizza Palace\",\n  \"address\": \"456 Oak Ave, Mumbai\",\n  \"phone\": \"+91 98765 43211\",\n  \"delivery_time\": \"45-60 min\",\n  \"is_open\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/stores/store-123",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "store-123"]
+						}
+					}
+				},
+				{
+					"name": "Delete Store",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/stores/store-123",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "store-123"]
+						}
+					}
+				},
+				{
+					"name": "Get Owner Stores",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/stores/owner",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "owner"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Get All Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/products?page=1&limit=20&store_id=store-123&category_id=pizza&search=margherita&min_price=10&max_price=20&in_stock=true",
+							"host": ["{{base_url}}"],
+							"path": ["products"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "store_id",
+									"value": "store-123"
+								},
+								{
+									"key": "category_id",
+									"value": "pizza"
+								},
+								{
+									"key": "search",
+									"value": "margherita"
+								},
+								{
+									"key": "min_price",
+									"value": "10"
+								},
+								{
+									"key": "max_price",
+									"value": "20"
+								},
+								{
+									"key": "in_stock",
+									"value": "true"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/products/prod-123",
+							"host": ["{{base_url}}"],
+							"path": ["products", "prod-123"]
+						}
+					}
+				},
+				{
+					"name": "Get Store Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stores/store-123/products?page=1&limit=10&category_id=pizza&search=margherita",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "store-123", "products"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "category_id",
+									"value": "pizza"
+								},
+								{
+									"key": "search",
+									"value": "margherita"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Product (From Available Catalog)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"available_product_id\": \"b9238c4d-77e1-4585-b086-11af2dabdb59\",\n  \"price\": 13.99,\n  \"stock\": 25\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/stores/store-123/products",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "store-123", "products"]
+						}
+					}
+				},
+				{
+					"name": "Create Product (New Product)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Fresh Carrots\",\n  \"description\": \"Organic orange carrots\",\n  \"price\": 30.00,\n  \"unit\": \"kg\",\n  \"stock\": 25,\n  \"category_id\": \"vegetables\",\n  \"image_url\": \"https://example.com/carrots.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/stores/store-123/products",
+							"host": ["{{base_url}}"],
+							"path": ["stores", "store-123", "products"]
+						}
+					}
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Product Name\",\n  \"price\": 35.00,\n  \"stock\": 30,\n  \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/products/prod-123",
+							"host": ["{{base_url}}"],
+							"path": ["products", "prod-123"]
+						}
+					}
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products/prod-123",
+							"host": ["{{base_url}}"],
+							"path": ["products", "prod-123"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "Get All Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/orders?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["orders"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Order by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/orders/order-123",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "order-123"]
+						}
+					}
+				},
+				{
+					"name": "Create Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"store_id\": \"store-123\",\n  \"delivery_address\": \"123 Main St, Bangalore\",\n  \"special_instructions\": \"Extra cheese please\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/orders",
+							"host": ["{{base_url}}"],
+							"path": ["orders"]
+						}
+					}
+				},
+				{
+					"name": "Update Order Status",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"preparing\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/orders/order-123/status",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "order-123", "status"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Cart Management",
+			"item": [
+				{
+					"name": "Get Cart",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/cart",
+							"host": ["{{base_url}}"],
+							"path": ["cart"]
+						}
+					}
+				},
+				{
+					"name": "Add Item to Cart",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"product_id\": \"b9238c4d-77e1-4585-b086-11af2dabdb59\",\n  \"quantity\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/cart/items",
+							"host": ["{{base_url}}"],
+							"path": ["cart", "items"]
+						}
+					}
+				},
+				{
+					"name": "Update Cart Item",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"quantity\": 3\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/cart/items/b9238c4d-77e1-4585-b086-11af2dabdb59",
+							"host": ["{{base_url}}"],
+							"path": ["cart", "items", "b9238c4d-77e1-4585-b086-11af2dabdb59"]
+						}
+					}
+				},
+				{
+					"name": "Remove Item from Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/cart/items/b9238c4d-77e1-4585-b086-11af2dabdb59",
+							"host": ["{{base_url}}"],
+							"path": ["cart", "items", "b9238c4d-77e1-4585-b086-11af2dabdb59"]
+						}
+					}
+				},
+				{
+					"name": "Clear Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/cart",
+							"host": ["{{base_url}}"],
+							"path": ["cart"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

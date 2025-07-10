@@ -1,3 +1,4 @@
 name: anna-akka-platform
 runtime: python
-description: Grocery delivery platform infrastructure with AWS Lambda, DynamoDB, and RDS 
+description: Grocery delivery platform infrastructure with AWS Lambda, DynamoDB, and RDS
+organization: roopeeh 

@@ -1,10 +1,17 @@
+import hashlib
+import time
+import logging
+import os
+
 # DynamoDB Table Names
 USERS_TABLE = 'USERS_TABLE'
 STORES_TABLE = 'STORES_TABLE'
 CATEGORIES_TABLE = 'CATEGORIES_TABLE'
 PRODUCTS_TABLE = 'PRODUCTS_TABLE'
+AVAILABLE_PRODUCTS_TABLE = 'AVAILABLE_PRODUCTS_TABLE'
 ORDERS_TABLE = 'ORDERS_TABLE'
 ORDER_ITEMS_TABLE = 'ORDER_ITEMS_TABLE'
+CART_TABLE = 'CART_TABLE'
 
 # Environment Variables
 ENVIRONMENT = 'ENVIRONMENT'
@@ -17,7 +24,8 @@ ERROR_CODES = {
     'NOT_FOUND': 'NOT_FOUND',
     'CONFLICT': 'CONFLICT',
     'UNPROCESSABLE_ENTITY': 'UNPROCESSABLE_ENTITY',
-    'INTERNAL_ERROR': 'INTERNAL_ERROR'
+    'INTERNAL_ERROR': 'INTERNAL_ERROR',
+    'METHOD_NOT_ALLOWED': 'METHOD_NOT_ALLOWED'
 }
 
 # HTTP Status Codes
@@ -29,6 +37,7 @@ STATUS_CODES = {
     'UNAUTHORIZED': 401,
     'FORBIDDEN': 403,
     'NOT_FOUND': 404,
+    'METHOD_NOT_ALLOWED': 405,
     'CONFLICT': 409,
     'UNPROCESSABLE_ENTITY': 422,
     'INTERNAL_ERROR': 500
@@ -82,7 +91,9 @@ INDEX_NAMES = {
     'CATEGORY_ID_INDEX': 'category_id_index',
     'CUSTOMER_ID_INDEX': 'customer_id_index',
     'STATUS_INDEX': 'status_index',
-    'ORDER_ID_INDEX': 'order_id_index'
+    'ORDER_ID_INDEX': 'order_id_index',
+    'CART_STORE_ID_INDEX': 'store_id_index',
+    'CART_EXPIRES_AT_INDEX': 'expires_at_index'
 }
 
 # Required Fields for Validation
@@ -91,7 +102,9 @@ REQUIRED_FIELDS = {
     'STORE_CREATE': ['name', 'address'],
     'PRODUCT_CREATE': ['name', 'price'],
     'ORDER_CREATE': ['store_id', 'delivery_address', 'items'],
-    'CATEGORY_CREATE': ['name']
+    'CATEGORY_CREATE': ['name'],
+    'CART_ADD_ITEM': ['product_id', 'quantity'],
+    'CART_UPDATE_ITEM': ['quantity']
 }
 
 # Allowed Update Fields
@@ -125,4 +138,11 @@ MOCK_VALUES = {
     'OWNER_ID': 'mock-owner-id',
     'STORE_ID': 'mock-store-id',
     'CUSTOMER_ID': 'mock-customer-id'
+}
+
+# Cart Configuration
+CART_CONFIG = {
+    'TTL_DAYS': 30,  # Cart items expire after 30 days
+    'MAX_QUANTITY': 100,  # Maximum quantity per item
+    'MAX_ITEMS': 50  # Maximum items per cart
 } 
