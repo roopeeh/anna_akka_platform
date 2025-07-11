@@ -1,0 +1,37 @@
+# Anna Akka Platform - Environment Configuration Example
+# Copy this file to .env and modify the values as needed
+# Or set these as environment variables in your system
+
+# API Endpoints
+API_BASE_URL=https://z8sre11rwh.execute-api.ap-south-1.amazonaws.com/dev
+API_BASE_URL_DEV=https://z8sre11rwh.execute-api.ap-south-1.amazonaws.com/dev
+API_BASE_URL_LOCAL=http://localhost:3000
+
+# Test Configuration
+TEST_PHONE=+919502528182
+TEST_OTP=123456
+USE_REAL_SMS=true
+ACCEPT_TEST_OTP=false
+
+# Timeout Settings
+REQUEST_TIMEOUT=30
+OTP_WAIT_TIME=60
+
+# Test Data
+TEST_USER_NAME=Test User
+TEST_USER_EMAIL=test@example.com
+TEST_USER_PHONE=+919876543210
+
+# Test Product Data
+TEST_PRODUCT_NAME=Test Product
+TEST_PRODUCT_PRICE=25.50
+TEST_PRODUCT_UNIT=piece
+TEST_PRODUCT_STOCK=10
+
+# Test Store Data
+TEST_STORE_NAME=Test Store
+TEST_STORE_ADDRESS=123 Test Street
+TEST_STORE_PHONE=+919876543210
+
+# Headers
+CONTENT_TYPE=application/json 

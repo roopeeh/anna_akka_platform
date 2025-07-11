@@ -19,13 +19,8 @@ try:
     config = get_test_config()
 except ImportError:
     # Fallback configuration
-    config = {
-        "test_phone": "+919876543210",
-        "test_otp": "123456",
-        "base_url": "https://4yvijqg3z3.execute-api.us-east-1.amazonaws.com/dev",
-        "use_real_sms": False,
-        "accept_test_otp": True
-    }
+    from env_config import get_test_config
+    config = get_test_config()
 
 class SafeTokenIntegrationTest:
     def __init__(self):

@@ -22,10 +22,10 @@ import random
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://4yvijqg3z3.execute-api.us-east-1.amazonaws.com/dev"
-HEADERS = {
-    "Content-Type": "application/json"
-}
+from env_config import get_base_url, get_headers
+
+BASE_URL = get_base_url()
+HEADERS = get_headers()
 
 class ProductsIntegrationTest:
     def __init__(self):

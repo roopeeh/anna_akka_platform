@@ -15,7 +15,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class CustomTokenIntegrationTest:
     def __init__(self):
-        self.base_url = "https://4yvijqg3z3.execute-api.us-east-1.amazonaws.com/dev"
+        from env_config import get_base_url
+        self.base_url = get_base_url()
         self.auth_token = None
         self.user_data = None
         # Use a test phone number instead of real number

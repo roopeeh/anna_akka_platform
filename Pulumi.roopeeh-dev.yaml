@@ -1,0 +1,6 @@
+config:
+  aws:region: ap-south-1
+  pulumi:owner: roopeeh
+  aws:profile: default
+  environment: dev
+  stack_name: dev-stack-ap-south-1 

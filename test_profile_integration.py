@@ -19,7 +19,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE_URL = "https://4yvijqg3z3.execute-api.us-east-1.amazonaws.com/dev"
+from env_config import get_base_url
+
+API_BASE_URL = get_base_url()
 
 # Test user data
 TEST_USER_ID = "mock-user-id"  # Use mock user ID

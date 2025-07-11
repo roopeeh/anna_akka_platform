@@ -21,10 +21,12 @@ import random
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://4yvijqg3z3.execute-api.us-east-1.amazonaws.com/dev"
-HEADERS = {
-    "Content-Type": "application/json"
-}
+from env_config import get_base_url
+
+BASE_URL = get_base_url()
+from env_config import get_headers
+
+HEADERS = get_headers()
 
 class CartIntegrationTest:
     def __init__(self):

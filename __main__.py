@@ -10,7 +10,7 @@ config = pulumi.Config()
 environment = config.get("environment") or "dev"
 project_name = "anna-akka-platform"
 
-# VPC and Networking
+# VPC and Networking - Optimized for faster deployment
 vpc = awsx.ec2.Vpc(f"{project_name}-vpc",
     cidr_block="10.0.0.0/16",
     number_of_availability_zones=2,
@@ -25,6 +25,8 @@ vpc = awsx.ec2.Vpc(f"{project_name}-vpc",
         ),
     ],
     subnet_strategy=awsx.ec2.SubnetAllocationStrategy.AUTO,
+    enable_dns_hostnames=True,
+    enable_dns_support=True,
     tags={
         "Name": f"{project_name}-vpc",
         "Environment": environment,
@@ -60,7 +62,7 @@ lambda_sg = aws.ec2.SecurityGroup(f"{project_name}-lambda-sg",
 
 # IAM Role for Cognito SMS
 cognito_sms_role = aws.iam.Role(f"{project_name}-cognito-sms-role",
-    name=f"{project_name}-cognito-sms-role",
+    name=f"{project_name}-{environment}-cognito-sms-role",
     assume_role_policy=json.dumps({
         "Version": "2012-10-17",
         "Statement": [{
@@ -79,7 +81,7 @@ cognito_sms_role = aws.iam.Role(f"{project_name}-cognito-sms-role",
 
 # Create custom SMS policy for Cognito
 cognito_sms_policy = aws.iam.Policy(f"{project_name}-cognito-sms-policy",
-    name=f"{project_name}-cognito-sms-policy",
+    name=f"{project_name}-{environment}-cognito-sms-policy",
     description="Policy for Cognito SMS functionality",
     policy=json.dumps({
         "Version": "2012-10-17",
@@ -133,7 +135,7 @@ cognito_user_pool = aws.cognito.UserPool(f"{project_name}-user-pool",
     sms_configuration=aws.cognito.UserPoolSmsConfigurationArgs(
         external_id=f"{project_name}-sms-config",
         sns_caller_arn=cognito_sms_role.arn,
-        sns_region="us-east-1",
+        sns_region=config.get("aws:region") or "ap-south-1",
     ),
     tags={
         "Name": f"{project_name}-user-pool",
