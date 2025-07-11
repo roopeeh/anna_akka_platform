@@ -16,6 +16,7 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.resource('dynamodb')
 products_table = dynamodb.Table(os.environ['PRODUCTS_TABLE'])  # type: ignore
 available_products_table = dynamodb.Table(os.environ['AVAILABLE_PRODUCTS_TABLE'])  # type: ignore
+stores_table = dynamodb.Table(os.environ['STORES_TABLE'])  # type: ignore
 
 # Get constants from environment variables
 ERROR_CODES = {
@@ -25,7 +26,8 @@ ERROR_CODES = {
     'NOT_FOUND': os.environ.get('ERROR_CODES_NOT_FOUND', 'NOT_FOUND'),
     'CONFLICT': os.environ.get('ERROR_CODES_CONFLICT', 'CONFLICT'),
     'UNPROCESSABLE_ENTITY': os.environ.get('ERROR_CODES_UNPROCESSABLE_ENTITY', 'UNPROCESSABLE_ENTITY'),
-    'INTERNAL_ERROR': os.environ.get('ERROR_CODES_INTERNAL_ERROR', 'INTERNAL_ERROR')
+    'INTERNAL_ERROR': os.environ.get('ERROR_CODES_INTERNAL_ERROR', 'INTERNAL_ERROR'),
+    'METHOD_NOT_ALLOWED': os.environ.get('ERROR_CODES_METHOD_NOT_ALLOWED', 'METHOD_NOT_ALLOWED')
 }
 
 STATUS_CODES = {
@@ -36,6 +38,7 @@ STATUS_CODES = {
     'UNAUTHORIZED': int(os.environ.get('STATUS_CODES_UNAUTHORIZED', '401')),
     'FORBIDDEN': int(os.environ.get('STATUS_CODES_FORBIDDEN', '403')),
     'NOT_FOUND': int(os.environ.get('STATUS_CODES_NOT_FOUND', '404')),
+    'METHOD_NOT_ALLOWED': int(os.environ.get('STATUS_CODES_METHOD_NOT_ALLOWED', '405')),
     'CONFLICT': int(os.environ.get('STATUS_CODES_CONFLICT', '409')),
     'UNPROCESSABLE_ENTITY': int(os.environ.get('STATUS_CODES_UNPROCESSABLE_ENTITY', '422')),
     'INTERNAL_ERROR': int(os.environ.get('STATUS_CODES_INTERNAL_ERROR', '500'))
@@ -145,6 +148,60 @@ def get_product_by_id(product_id):
     logger.info(f"Product lookup result: {'Found' if product else 'Not found'}")
     return product
 
+def update_store_product_ids(store_id):
+    """Update store with product IDs from available products"""
+    logger.info(f"Updating product IDs for store: {store_id}")
+    
+    try:
+        # Get all products for this store
+        query_kwargs = {
+            'IndexName': 'store_id_index',
+            'KeyConditionExpression': 'store_id = :store_id',
+            'ExpressionAttributeValues': {':store_id': store_id}
+        }
+        
+        response = products_table.query(**query_kwargs)
+        products = response.get('Items', [])
+        
+        # Extract available product IDs from store products
+        available_product_ids = []
+        for product in products:
+            available_product_id = product.get('available_product_id')
+            if available_product_id:
+                available_product_ids.append(available_product_id)
+        
+        # Remove duplicates
+        available_product_ids = list(set(available_product_ids))
+        
+        logger.info(f"Found {len(available_product_ids)} unique available product IDs for store {store_id}")
+        
+        # Update the store with product IDs
+        update_expression = "SET #product_ids = :product_ids, #updated_at = :updated_at"
+        expression_values = {
+            ':product_ids': available_product_ids,
+            ':updated_at': datetime.utcnow().isoformat()
+        }
+        expression_names = {
+            '#product_ids': 'product_ids',
+            '#updated_at': 'updated_at'
+        }
+        
+        response = stores_table.update_item(
+            Key={'id': store_id},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeNames=expression_names,
+            ReturnValues="ALL_NEW"
+        )
+        
+        updated_store = response.get('Attributes')
+        logger.info(f"Store product IDs updated successfully: {updated_store is not None}")
+        return updated_store
+        
+    except Exception as e:
+        logger.error(f"Error updating store product IDs: {str(e)}")
+        return None
+
 def create_product(product_data, store_id):
     """Create a new product"""
     logger.info(f"Creating product for store ID: {store_id}")
@@ -226,6 +283,10 @@ def create_product(product_data, store_id):
     logger.info(f"Product item to be created: {json.dumps(product_item, default=str)}")
     products_table.put_item(Item=product_item)
     logger.info(f"Product created successfully with ID: {product_id}")
+    
+    # Update store product IDs after creating product
+    update_store_product_ids(store_id)
+    
     return product_item
 
 def update_product(product_id, update_data, store_id):
@@ -351,11 +412,24 @@ def handler(event, context):
         
         # Route based on path and method
         # Handle both with and without stage prefix (/dev/products or /products)
-        if (path == '/products' or path.endswith('/products')) and method == 'GET':
-            logger.info("Routing to get products handler")
-            response = handle_get_products(query_params)
-            logger.info(f"Get products response: {json.dumps(response, default=str)}")
-            return response
+        if (path == '/products' or path.endswith('/products')):
+            if method == 'GET':
+                logger.info("Routing to get products handler")
+                response = handle_get_products(query_params)
+                logger.info(f"Get products response: {json.dumps(response, default=str)}")
+                return response
+            elif method in ['PUT', 'DELETE']:
+                logger.warning(f"Method not allowed: {method} for /products")
+                return {
+                    'statusCode': STATUS_CODES['METHOD_NOT_ALLOWED'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['METHOD_NOT_ALLOWED'],
+                            'message': f'Method {method} not allowed for this endpoint'
+                        }
+                    })
+                }
         elif (path.startswith('/products/') or path.endswith('/products/')) and method == 'GET':
             # Extract product_id from path, handling both /products/{id} and /dev/products/{id}
             path_parts = path.split('/')
@@ -364,34 +438,86 @@ def handler(event, context):
             response = handle_get_product(product_id)
             logger.info(f"Get product response: {json.dumps(response, default=str)}")
             return response
-        elif (path.startswith('/stores/') or path.endswith('/stores/')) and '/products' in path and method == 'GET':
-            # Handle /stores/{storeId}/products and /dev/stores/{storeId}/products
+        elif (path.startswith('/products/stores/') or path.endswith('/products/stores/')) and method == 'GET':
+            # Handle /products/stores/{storeId} and /dev/products/stores/{storeId}
             path_parts = path.split('/')
-            # Find store_id in the path parts
+            logger.info(f"Path parts for GET store products: {path_parts}")
+            
+            # Find store_id in the path parts - look for 'stores' after 'products'
             store_id = None
-            for i, part in enumerate(path_parts):
-                if part == 'stores' and i + 1 < len(path_parts):
-                    store_id = path_parts[i + 1]
-                    break
-            if store_id:
-                logger.info(f"Routing to get store products handler for store ID: {store_id}")
-                response = handle_get_store_products(store_id, query_params)
-                logger.info(f"Get store products response: {json.dumps(response, default=str)}")
-                return response
-        elif (path.startswith('/stores/') or path.endswith('/stores/')) and '/products' in path and method == 'POST':
-            # Handle POST /stores/{storeId}/products and /dev/stores/{storeId}/products
+            try:
+                products_index = path_parts.index('products')
+                if products_index + 2 < len(path_parts) and path_parts[products_index + 1] == 'stores':
+                    store_id = path_parts[products_index + 2]
+                    logger.info(f"Extracted store_id for get products: {store_id}")
+                    logger.info(f"Routing to get store products handler for store ID: {store_id}")
+                    response = handle_get_store_products(store_id, query_params)
+                    logger.info(f"Get store products response: {json.dumps(response, default=str)}")
+                    return response
+                else:
+                    logger.warning("No store_id found in path for get products")
+                    return {
+                        'statusCode': STATUS_CODES['BAD_REQUEST'],
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': {
+                                'code': ERROR_CODES['VALIDATION_ERROR'],
+                                'message': 'Store ID is required'
+                            }
+                        })
+                    }
+            except ValueError:
+                logger.warning("Could not find 'products/stores' in path for get products")
+                return {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Invalid path format'
+                        }
+                    })
+                }
+        elif (path.startswith('/products/stores/') or path.endswith('/products/stores/')) and method == 'POST':
+            # Handle POST /products/stores/{storeId} and /dev/products/stores/{storeId}
             path_parts = path.split('/')
-            # Find store_id in the path parts
+            logger.info(f"Path parts for POST store products: {path_parts}")
+            
+            # Find store_id in the path parts - look for 'stores' after 'products'
             store_id = None
-            for i, part in enumerate(path_parts):
-                if part == 'stores' and i + 1 < len(path_parts):
-                    store_id = path_parts[i + 1]
-                    break
-            if store_id:
-                logger.info(f"Routing to create product handler for store ID: {store_id}")
-                response = handle_create_product(event, body, store_id)
-                logger.info(f"Create product response: {json.dumps(response, default=str)}")
-                return response
+            try:
+                products_index = path_parts.index('products')
+                if products_index + 2 < len(path_parts) and path_parts[products_index + 1] == 'stores':
+                    store_id = path_parts[products_index + 2]
+                    logger.info(f"Extracted store_id for product creation: {store_id}")
+                    logger.info(f"Routing to create product handler for store ID: {store_id}")
+                    response = handle_create_product(event, body, store_id)
+                    logger.info(f"Create product response: {json.dumps(response, default=str)}")
+                    return response
+                else:
+                    logger.warning("No store_id found in path for product creation")
+                    return {
+                        'statusCode': STATUS_CODES['BAD_REQUEST'],
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': {
+                                'code': ERROR_CODES['VALIDATION_ERROR'],
+                                'message': 'Store ID is required'
+                            }
+                        })
+                    }
+            except ValueError:
+                logger.warning("Could not find 'products/stores' in path for product creation")
+                return {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Invalid path format'
+                        }
+                    })
+                }
         elif (path.startswith('/products/') or path.endswith('/products/')) and method == 'PUT':
             # Extract product_id from path, handling both /products/{id} and /dev/products/{id}
             path_parts = path.split('/')
@@ -710,6 +836,9 @@ def handle_delete_product(event, product_id):
         
         products_table.delete_item(Key={'id': product_id})
         logger.info(f"Product deleted successfully: {product_id}")
+        
+        # Update store product IDs after deleting product
+        update_store_product_ids(product['store_id'])
         
         response = {
             'statusCode': STATUS_CODES['NO_CONTENT'],

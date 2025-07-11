@@ -5,7 +5,7 @@ This guide provides the complete API documentation for integrating frontend appl
 
 ## Base Configuration
 - **Base URL**: Your deployed API Gateway URL
-- **Authentication**: `Authorization: Bearer <firebase-jwt-token>`
+- **Authentication**: `Authorization: Bearer <jwt-token>`
 - **Content-Type**: `application/json`
 - **CORS**: Enabled for all origins
 

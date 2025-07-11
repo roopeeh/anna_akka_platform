@@ -26,6 +26,8 @@ def convert_decimals(obj):
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
 stores_table = dynamodb.Table(os.environ['STORES_TABLE'])  # type: ignore
+available_products_table = dynamodb.Table(os.environ['AVAILABLE_PRODUCTS_TABLE'])  # type: ignore
+products_table = dynamodb.Table(os.environ['PRODUCTS_TABLE'])  # type: ignore
 
 # Get constants from environment variables
 ERROR_CODES = {
@@ -129,9 +131,9 @@ def get_store_by_id(store_id):
     logger.info(f"Store lookup result: {'Found' if store else 'Not found'}")
     return store
 
-def create_store(store_data, owner_id):
+def create_store(store_data, user_id):
     """Create a new store"""
-    logger.info(f"Creating store for owner ID: {owner_id}")
+    logger.info(f"Creating store for user ID: {user_id}")
     logger.info(f"Store data: {json.dumps(store_data, default=str)}")
     
     store_id = str(uuid.uuid4())
@@ -139,13 +141,14 @@ def create_store(store_data, owner_id):
     
     store_item = {
         'id': store_id,
-        'owner_id': owner_id,
+        'owner_id': user_id,
         'name': store_data['name'],
         'address': store_data['address'],
         'phone': store_data.get('phone'),
         'is_open': True,
         'rating': 0,
         'delivery_time': store_data.get('delivery_time', '30-45 min'),
+        'product_ids': [], # Initialize product_ids
         'created_at': timestamp,
         'updated_at': timestamp
     }
@@ -155,15 +158,15 @@ def create_store(store_data, owner_id):
     logger.info(f"Store created successfully with ID: {store_id}")
     return store_item
 
-def update_store(store_id, update_data, owner_id):
+def update_store(store_id, update_data, user_id):
     """Update store details"""
-    logger.info(f"Updating store ID: {store_id} for owner ID: {owner_id}")
+    logger.info(f"Updating store ID: {store_id} for user ID: {user_id}")
     logger.info(f"Update data: {json.dumps(update_data, default=str)}")
     
     # First verify ownership
     store = get_store_by_id(store_id)
-    if not store or store['owner_id'] != owner_id:
-        logger.warning(f"Store not found or access denied for store ID: {store_id}, owner ID: {owner_id}")
+    if not store or store['owner_id'] != user_id:
+        logger.warning(f"Store not found or access denied for store ID: {store_id}, user ID: {user_id}")
         return None
     
     # Prepare update expression
@@ -196,19 +199,112 @@ def update_store(store_id, update_data, owner_id):
     logger.info(f"Store updated successfully: {updated_store is not None}")
     return updated_store
 
-def get_stores_by_owner(owner_id):
+def get_stores_by_owner(user_id):
     """Get stores owned by a specific user"""
-    logger.info(f"Getting stores for owner ID: {owner_id}")
+    logger.info(f"Getting stores for user ID: {user_id}")
     
     response = stores_table.query(
         IndexName='owner_id_index',
         KeyConditionExpression='owner_id = :owner_id',
-        ExpressionAttributeValues={':owner_id': owner_id}
+        ExpressionAttributeValues={':owner_id': user_id}
     )
     
     stores = response.get('Items', [])
-    logger.info(f"Found {len(stores)} stores for owner {owner_id}")
+    logger.info(f"Found {len(stores)} stores for user {user_id}")
     return stores
+
+def update_store_product_ids(store_id):
+    """Update store with product IDs from available products"""
+    logger.info(f"Updating product IDs for store: {store_id}")
+    
+    try:
+        # Get all products for this store
+        query_kwargs = {
+            'IndexName': 'store_id_index',
+            'KeyConditionExpression': 'store_id = :store_id',
+            'ExpressionAttributeValues': {':store_id': store_id}
+        }
+        
+        response = products_table.query(**query_kwargs)
+        products = response.get('Items', [])
+        
+        # Extract available product IDs from store products
+        available_product_ids = []
+        for product in products:
+            available_product_id = product.get('available_product_id')
+            if available_product_id:
+                available_product_ids.append(available_product_id)
+        
+        # Remove duplicates
+        available_product_ids = list(set(available_product_ids))
+        
+        logger.info(f"Found {len(available_product_ids)} unique available product IDs for store {store_id}")
+        
+        # Update the store with product IDs
+        update_expression = "SET #product_ids = :product_ids, #updated_at = :updated_at"
+        expression_values = {
+            ':product_ids': available_product_ids,
+            ':updated_at': datetime.utcnow().isoformat()
+        }
+        expression_names = {
+            '#product_ids': 'product_ids',
+            '#updated_at': 'updated_at'
+        }
+        
+        response = stores_table.update_item(
+            Key={'id': store_id},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeNames=expression_names,
+            ReturnValues="ALL_NEW"
+        )
+        
+        updated_store = response.get('Attributes')
+        logger.info(f"Store product IDs updated successfully: {updated_store is not None}")
+        return updated_store
+        
+    except Exception as e:
+        logger.error(f"Error updating store product IDs: {str(e)}")
+        return None
+
+def get_all_available_product_ids():
+    """Get all available product IDs"""
+    logger.info("Getting all available product IDs")
+    
+    try:
+        response = available_products_table.scan()
+        products = response.get('Items', [])
+        
+        product_ids = [product['id'] for product in products]
+        logger.info(f"Found {len(product_ids)} available product IDs")
+        return product_ids
+        
+    except Exception as e:
+        logger.error(f"Error getting available product IDs: {str(e)}")
+        return []
+
+def update_all_stores_product_ids():
+    """Update all stores with their product IDs"""
+    logger.info("Updating all stores with product IDs")
+    
+    try:
+        # Get all stores
+        response = stores_table.scan()
+        stores = response.get('Items', [])
+        
+        updated_count = 0
+        for store in stores:
+            store_id = store['id']
+            updated_store = update_store_product_ids(store_id)
+            if updated_store:
+                updated_count += 1
+        
+        logger.info(f"Updated {updated_count} out of {len(stores)} stores")
+        return updated_count
+        
+    except Exception as e:
+        logger.error(f"Error updating all stores: {str(e)}")
+        return 0
 
 def handler(event, context):
     """Main Lambda handler for stores"""
@@ -374,6 +470,46 @@ def handler(event, context):
                         }
                     })
                 }
+        elif (path == '/stores/update-product-ids' or path.endswith('/stores/update-product-ids')) and method == 'POST':
+            logger.info("Routing to update all stores product IDs handler")
+            response = handle_update_all_stores_product_ids()
+            logger.info(f"Update all stores product IDs response: {json.dumps(response, default=str)}")
+            return response
+        elif (path.startswith('/store-update-product-ids/') or path.endswith('/store-update-product-ids/')) and method == 'POST':
+            # Handle POST /store-update-product-ids/{storeId}
+            path_parts = path.split('/')
+            try:
+                store_update_index = path_parts.index('store-update-product-ids')
+                if store_update_index + 1 < len(path_parts):
+                    store_id = path_parts[store_update_index + 1]
+                    logger.info(f"Routing to update store product IDs handler for store ID: {store_id}")
+                    response = handle_update_store_product_ids(store_id)
+                    logger.info(f"Update store product IDs response: {json.dumps(response, default=str)}")
+                    return response
+                else:
+                    logger.warning("No store_id found in path for update product IDs")
+                    return {
+                        'statusCode': STATUS_CODES['BAD_REQUEST'],
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': {
+                                'code': ERROR_CODES['VALIDATION_ERROR'],
+                                'message': 'Store ID is required'
+                            }
+                        })
+                    }
+            except ValueError:
+                logger.warning("Could not find 'store-update-product-ids' in path for update product IDs")
+                return {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Invalid path format'
+                        }
+                    })
+                }
         elif (path == '/stores' or path.endswith('/stores')) and method == 'POST':
             logger.info("Routing to create store handler")
             response = handle_create_store(event, body)
@@ -523,8 +659,8 @@ def handle_create_store(event, body):
         logger.info(f"Creating store with data: {json.dumps(body, default=str)}")
         
         # For now, use a mock owner ID - security will be implemented later
-        owner_id = 'mock-owner-id'
-        logger.info(f"Creating store for owner ID: {owner_id}")
+        user_id = 'mock-user-id'
+        logger.info(f"Creating store for user ID: {user_id}")
         
         # Validate required fields
         required_fields = ['name', 'address']
@@ -546,7 +682,7 @@ def handle_create_store(event, body):
         
         logger.info("All required fields present")
         
-        store = create_store(body, owner_id)
+        store = create_store(body, user_id)
         
         # Convert Decimal types for JSON serialization
         store = convert_decimals(store)
@@ -578,8 +714,8 @@ def handle_update_store(event, store_id, body):
     logger.info("=== UPDATE STORE HANDLER START ===")
     try:
         # For now, use a mock owner ID - security will be implemented later
-        owner_id = 'mock-owner-id'
-        logger.info(f"Updating store ID: {store_id} for owner ID: {owner_id}")
+        user_id = 'mock-user-id'
+        logger.info(f"Updating store ID: {store_id} for user ID: {user_id}")
         logger.info(f"Update data: {json.dumps(body, default=str)}")
         
         # Validate that at least one field is provided
@@ -607,7 +743,7 @@ def handle_update_store(event, store_id, body):
             logger.info("=== UPDATE STORE HANDLER END ===")
             return response
         
-        store = update_store(store_id, update_data, owner_id)
+        store = update_store(store_id, update_data, user_id)
         if not store:
             logger.warning(f"Store not found or access denied for ID: {store_id}")
             response = {
@@ -653,11 +789,11 @@ def handle_delete_store(event, store_id):
     logger.info("=== DELETE STORE HANDLER START ===")
     try:
         # For now, use a mock owner ID - security will be implemented later
-        owner_id = 'mock-owner-id'
-        logger.info(f"Deleting store ID: {store_id} for owner ID: {owner_id}")
+        user_id = 'mock-user-id'
+        logger.info(f"Deleting store ID: {store_id} for user ID: {user_id}")
         
         store = get_store_by_id(store_id)
-        if not store or store['owner_id'] != owner_id:
+        if not store or store['owner_id'] != user_id:
             logger.warning(f"Store not found or access denied for ID: {store_id}")
             response = {
                 'statusCode': STATUS_CODES['NOT_FOUND'],
@@ -702,10 +838,10 @@ def handle_get_owner_stores(event):
     logger.info("=== GET OWNER STORES HANDLER START ===")
     try:
         # For now, use a mock owner ID - security will be implemented later
-        owner_id = 'mock-owner-id'
-        logger.info(f"Getting stores for owner ID: {owner_id}")
+        user_id = 'mock-user-id'
+        logger.info(f"Getting stores for user ID: {user_id}")
         
-        stores = get_stores_by_owner(owner_id)
+        stores = get_stores_by_owner(user_id)
         
         # Convert Decimal types for JSON serialization
         stores = convert_decimals(stores)
@@ -721,6 +857,89 @@ def handle_get_owner_stores(event):
     except Exception as e:
         logger.error(f"Get owner stores error: {str(e)}", exc_info=True)
         logger.info("=== GET OWNER STORES HANDLER END ===")
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        } 
+
+def handle_update_store_product_ids(store_id):
+    """Handle POST /stores/{storeId}/update-product-ids"""
+    logger.info("=== UPDATE STORE PRODUCT IDS HANDLER START ===")
+    try:
+        logger.info(f"Updating product IDs for store ID: {store_id}")
+        
+        updated_store = update_store_product_ids(store_id)
+        if not updated_store:
+            logger.warning(f"Failed to update product IDs for store ID: {store_id}")
+            response = {
+                'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['INTERNAL_ERROR'],
+                        'message': 'Failed to update store product IDs'
+                    }
+                })
+            }
+            logger.info("=== UPDATE STORE PRODUCT IDS HANDLER END ===")
+            return response
+        
+        # Convert Decimal types for JSON serialization
+        updated_store = convert_decimals(updated_store)
+        
+        response = {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'message': 'Store product IDs updated successfully',
+                'store': updated_store
+            })
+        }
+        
+        logger.info("=== UPDATE STORE PRODUCT IDS HANDLER END ===")
+        return response
+    except Exception as e:
+        logger.error(f"Update store product IDs error: {str(e)}", exc_info=True)
+        logger.info("=== UPDATE STORE PRODUCT IDS HANDLER END ===")
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
+def handle_update_all_stores_product_ids():
+    """Handle POST /stores/update-product-ids"""
+    logger.info("=== UPDATE ALL STORES PRODUCT IDS HANDLER START ===")
+    try:
+        logger.info("Updating product IDs for all stores")
+        
+        updated_count = update_all_stores_product_ids()
+        
+        response = {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'message': f'Updated {updated_count} stores with product IDs',
+                'updated_count': updated_count
+            })
+        }
+        
+        logger.info("=== UPDATE ALL STORES PRODUCT IDS HANDLER END ===")
+        return response
+    except Exception as e:
+        logger.error(f"Update all stores product IDs error: {str(e)}", exc_info=True)
+        logger.info("=== UPDATE ALL STORES PRODUCT IDS HANDLER END ===")
         return {
             'statusCode': STATUS_CODES['INTERNAL_ERROR'],
             'headers': CORS_HEADERS,

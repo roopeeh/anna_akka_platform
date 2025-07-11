@@ -26,125 +26,236 @@ available_products_table = dynamodb.Table(table_name)  # type: ignore
 
 # Sample available products data
 available_products = [
+    # Rice & More Category (ID: 1)
     {
-        "name": "Margherita Pizza",
-        "description": "Classic tomato sauce with fresh mozzarella cheese",
-        "price": Decimal('12.99'),
-        "unit": "piece",
-        "category_id": "pizza",
-        "image_url": "https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400"
+        "name": "Basmati Rice",
+        "description": "Premium long grain basmati rice",
+        "price": Decimal('120.00'),
+        "unit": "kg",
+        "category_id": "1",
+        "image_url": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400"
     },
     {
-        "name": "Pepperoni Pizza",
-        "description": "Spicy pepperoni with melted cheese and tomato sauce",
-        "price": Decimal('14.99'),
-        "unit": "piece",
-        "category_id": "pizza",
-        "image_url": "https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400"
+        "name": "Toor Dal",
+        "description": "Yellow pigeon peas",
+        "price": Decimal('140.00'),
+        "unit": "kg",
+        "category_id": "1",
+        "image_url": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400"
     },
     {
-        "name": "Chicken Burger",
-        "description": "Grilled chicken breast with lettuce, tomato, and special sauce",
-        "price": Decimal('8.99'),
-        "unit": "piece",
-        "category_id": "burger",
-        "image_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58e2?w=400"
+        "name": "Moong Dal",
+        "description": "Green gram split",
+        "price": Decimal('160.00'),
+        "unit": "kg",
+        "category_id": "1",
+        "image_url": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400"
     },
     {
-        "name": "Beef Burger",
-        "description": "Juicy beef patty with cheese, lettuce, and tomato",
-        "price": Decimal('9.99'),
-        "unit": "piece",
-        "category_id": "burger",
-        "image_url": "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=400"
+        "name": "Urad Dal",
+        "description": "Black gram split",
+        "price": Decimal('150.00'),
+        "unit": "kg",
+        "category_id": "1",
+        "image_url": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400"
     },
     {
-        "name": "Caesar Salad",
-        "description": "Fresh romaine lettuce with Caesar dressing, croutons, and parmesan",
-        "price": Decimal('7.99'),
-        "unit": "piece",
-        "category_id": "salad",
-        "image_url": "https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400"
+        "name": "Chana Dal",
+        "description": "Bengal gram split",
+        "price": Decimal('130.00'),
+        "unit": "kg",
+        "category_id": "1",
+        "image_url": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400"
     },
     {
-        "name": "Greek Salad",
-        "description": "Mixed greens with feta cheese, olives, cucumber, and olive oil",
-        "price": Decimal('6.99'),
-        "unit": "piece",
-        "category_id": "salad",
-        "image_url": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400"
+        "name": "Masoor Dal",
+        "description": "Red lentils",
+        "price": Decimal('120.00'),
+        "unit": "kg",
+        "category_id": "1",
+        "image_url": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400"
+    },
+    
+    # Household Essentials Category (ID: 2)
+    {
+        "name": "Detergent Powder",
+        "description": "Washing powder for clothes",
+        "price": Decimal('180.00'),
+        "unit": "kg",
+        "category_id": "2",
+        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
     },
     {
-        "name": "Chicken Wings",
-        "description": "Crispy fried chicken wings with your choice of sauce",
-        "price": Decimal('11.99'),
-        "unit": "piece",
-        "category_id": "appetizer",
-        "image_url": "https://images.unsplash.com/photo-1567620832904-9fc6debc209f?w=400"
+        "name": "Dish Wash Liquid",
+        "description": "Liquid dish cleaner",
+        "price": Decimal('120.00'),
+        "unit": "liter",
+        "category_id": "2",
+        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
     },
     {
-        "name": "French Fries",
-        "description": "Crispy golden fries with sea salt",
-        "price": Decimal('4.99'),
-        "unit": "piece",
-        "category_id": "side",
-        "image_url": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400"
+        "name": "Floor Cleaner",
+        "description": "Multi-surface floor cleaner",
+        "price": Decimal('95.00'),
+        "unit": "liter",
+        "category_id": "2",
+        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
     },
     {
-        "name": "Onion Rings",
-        "description": "Crispy battered onion rings",
-        "price": Decimal('5.99'),
-        "unit": "piece",
-        "category_id": "side",
-        "image_url": "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400"
+        "name": "Toilet Cleaner",
+        "description": "Bathroom cleaning solution",
+        "price": Decimal('85.00'),
+        "unit": "liter",
+        "category_id": "2",
+        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
     },
     {
-        "name": "Chocolate Milkshake",
-        "description": "Rich chocolate milkshake with whipped cream",
-        "price": Decimal('6.99'),
-        "unit": "piece",
-        "category_id": "beverage",
-        "image_url": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=400"
+        "name": "Glass Cleaner",
+        "description": "Window and glass cleaner",
+        "price": Decimal('75.00'),
+        "unit": "liter",
+        "category_id": "2",
+        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
     },
     {
-        "name": "Vanilla Milkshake",
-        "description": "Creamy vanilla milkshake with whipped cream",
-        "price": Decimal('5.99'),
+        "name": "Air Freshener",
+        "description": "Room freshener spray",
+        "price": Decimal('150.00'),
         "unit": "piece",
-        "category_id": "beverage",
-        "image_url": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=400"
+        "category_id": "2",
+        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
+    },
+    
+    # Personal Care Category (ID: 3)
+    {
+        "name": "Bathing Soap",
+        "description": "Natural bathing soap",
+        "price": Decimal('45.00'),
+        "unit": "piece",
+        "category_id": "3",
+        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400"
     },
     {
-        "name": "Coca Cola",
-        "description": "Classic Coca Cola soft drink",
-        "price": Decimal('2.99'),
-        "unit": "piece",
-        "category_id": "beverage",
-        "image_url": "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400"
+        "name": "Shampoo",
+        "description": "Hair care shampoo",
+        "price": Decimal('180.00'),
+        "unit": "liter",
+        "category_id": "3",
+        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400"
     },
     {
-        "name": "Pepsi",
-        "description": "Refreshing Pepsi soft drink",
-        "price": Decimal('2.99'),
+        "name": "Toothpaste",
+        "description": "Dental care toothpaste",
+        "price": Decimal('95.00'),
         "unit": "piece",
-        "category_id": "beverage",
-        "image_url": "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400"
+        "category_id": "3",
+        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400"
     },
     {
-        "name": "Chocolate Cake",
-        "description": "Rich chocolate cake with chocolate frosting",
-        "price": Decimal('7.99'),
+        "name": "Toothbrush",
+        "description": "Soft bristle toothbrush",
+        "price": Decimal('35.00'),
         "unit": "piece",
-        "category_id": "dessert",
-        "image_url": "https://images.unsplash.com/photo-1578985545062-6999b3a36d01?w=400"
+        "category_id": "3",
+        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400"
     },
     {
-        "name": "Cheesecake",
-        "description": "Creamy New York style cheesecake",
-        "price": Decimal('8.99'),
+        "name": "Deodorant",
+        "description": "Body deodorant spray",
+        "price": Decimal('120.00'),
         "unit": "piece",
-        "category_id": "dessert",
-        "image_url": "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=400"
+        "category_id": "3",
+        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400"
+    },
+    {
+        "name": "Hair Oil",
+        "description": "Natural hair oil",
+        "price": Decimal('85.00'),
+        "unit": "liter",
+        "category_id": "3",
+        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400"
+    },
+    
+    # Snacks & Beverages Category (ID: 4)
+    {
+        "name": "Potato Chips",
+        "description": "Crispy potato chips",
+        "price": Decimal('20.00'),
+        "unit": "pack",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Mixed Nuts",
+        "description": "Assorted dry fruits and nuts",
+        "price": Decimal('350.00'),
+        "unit": "kg",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Biscuits",
+        "description": "Cream biscuits",
+        "price": Decimal('25.00'),
+        "unit": "pack",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Popcorn",
+        "description": "Butter flavored popcorn",
+        "price": Decimal('15.00'),
+        "unit": "pack",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Chocolate",
+        "description": "Dark chocolate bar",
+        "price": Decimal('150.00'),
+        "unit": "pack",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Tea Bags",
+        "description": "Assam tea bags",
+        "price": Decimal('180.00'),
+        "unit": "pack",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Coffee Powder",
+        "description": "Filter coffee powder",
+        "price": Decimal('250.00'),
+        "unit": "kg",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Juice Pack",
+        "description": "Mixed fruit juice",
+        "price": Decimal('80.00'),
+        "unit": "liter",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Soft Drink",
+        "description": "Carbonated soft drink",
+        "price": Decimal('30.00'),
+        "unit": "bottle",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
+    },
+    {
+        "name": "Mineral Water",
+        "description": "Pure mineral water",
+        "price": Decimal('20.00'),
+        "unit": "liter",
+        "category_id": "4",
+        "image_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400"
     }
 ]
 
@@ -287,4 +398,5 @@ if __name__ == "__main__":
             populate_available_products()
     except Exception as e:
         print(f"Script error: {str(e)}")
+        exit(1) 
         exit(1) 

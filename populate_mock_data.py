@@ -127,34 +127,55 @@ class MockDataPopulator:
         logger.info("Creating product categories...")
         
         categories_data = [
-            {"name": "Vegetables"},
-            {"name": "Fruits"},
-            {"name": "Dairy Products"},
-            {"name": "Bakery"},
-            {"name": "Meat & Poultry"},
-            {"name": "Grains & Pulses"},
-            {"name": "Spices & Condiments"},
-            {"name": "Beverages"},
-            {"name": "Snacks"},
-            {"name": "Frozen Foods"}
+            {"name": "Rice & More", "id": "1"},
+            {"name": "Household Essentials", "id": "2"},
+            {"name": "Personal Care", "id": "3"},
+            {"name": "Snacks & Beverages", "id": "4"}
         ]
         
         for category in categories_data:
-            response = self.make_request("POST", "/categories", category)
+            # Use the provided ID instead of letting the API generate one
+            category_id = category.get('id')
+            category_name = category['name']
+            
+            # Create category data for API call
+            category_data = {
+                "name": category_name,
+                "id": category_id  # Include the ID in the request
+            }
+            
+            # Make API call to create category
+            response = self.make_request("POST", "/categories", category_data)
             if response:
                 # Handle the response structure - it might be wrapped in a body field
                 if isinstance(response, dict) and 'body' in response:
                     try:
-                        category_data = json.loads(response['body'])
-                        self.categories.append(category_data)
-                        logger.info(f"Created category: {category['name']}")
+                        created_category = json.loads(response['body'])
+                        self.categories.append(created_category)
+                        logger.info(f"Created category: {category_name} with ID: {category_id}")
                     except json.JSONDecodeError:
                         logger.error(f"Failed to parse category response: {response}")
+                        # Fallback: create category data manually
+                        fallback_category = {
+                            "id": category_id,
+                            "name": category_name,
+                            "created_at": datetime.utcnow().isoformat()
+                        }
+                        self.categories.append(fallback_category)
+                        logger.info(f"Created category (fallback): {category_name} with ID: {category_id}")
                 else:
                     self.categories.append(response)
-                    logger.info(f"Created category: {category['name']}")
+                    logger.info(f"Created category: {category_name} with ID: {category_id}")
             else:
-                logger.error(f"Failed to create category: {category['name']}")
+                logger.error(f"Failed to create category: {category_name}")
+                # Fallback: create category data manually
+                fallback_category = {
+                    "id": category_id,
+                    "name": category_name,
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                self.categories.append(fallback_category)
+                logger.info(f"Created category (fallback): {category_name} with ID: {category_id}")
         
         logger.info(f"Created {len(self.categories)} categories")
     
@@ -220,75 +241,41 @@ class MockDataPopulator:
         
         # Product templates for different categories
         product_templates = {
-            "Vegetables": [
-                {"name": "Fresh Tomatoes", "description": "Organic red tomatoes", "price": 25.50, "unit": "kg", "stock": 50},
-                {"name": "Onions", "description": "Fresh white onions", "price": 30.00, "unit": "kg", "stock": 75},
-                {"name": "Potatoes", "description": "Fresh potatoes", "price": 35.00, "unit": "kg", "stock": 100},
-                {"name": "Carrots", "description": "Organic orange carrots", "price": 40.00, "unit": "kg", "stock": 45},
-                {"name": "Cucumber", "description": "Fresh green cucumbers", "price": 20.00, "unit": "kg", "stock": 30}
+            "Rice & More": [
+                {"name": "Basmati Rice", "description": "Premium long grain basmati rice", "price": 120.00, "unit": "kg", "stock": 100},
+                {"name": "Toor Dal", "description": "Yellow pigeon peas", "price": 140.00, "unit": "kg", "stock": 75},
+                {"name": "Moong Dal", "description": "Green gram split", "price": 160.00, "unit": "kg", "stock": 60},
+                {"name": "Urad Dal", "description": "Black gram split", "price": 150.00, "unit": "kg", "stock": 50},
+                {"name": "Chana Dal", "description": "Bengal gram split", "price": 130.00, "unit": "kg", "stock": 80},
+                {"name": "Masoor Dal", "description": "Red lentils", "price": 120.00, "unit": "kg", "stock": 90}
             ],
-            "Fruits": [
-                {"name": "Bananas", "description": "Fresh yellow bananas", "price": 60.00, "unit": "dozen", "stock": 25},
-                {"name": "Apples", "description": "Red delicious apples", "price": 120.00, "unit": "kg", "stock": 40},
-                {"name": "Oranges", "description": "Sweet oranges", "price": 80.00, "unit": "kg", "stock": 35},
-                {"name": "Mangoes", "description": "Ripe alphonso mangoes", "price": 150.00, "unit": "kg", "stock": 20},
-                {"name": "Grapes", "description": "Fresh black grapes", "price": 100.00, "unit": "kg", "stock": 30}
+            "Household Essentials": [
+                {"name": "Detergent Powder", "description": "Washing powder for clothes", "price": 180.00, "unit": "kg", "stock": 40},
+                {"name": "Dish Wash Liquid", "description": "Liquid dish cleaner", "price": 120.00, "unit": "liter", "stock": 60},
+                {"name": "Floor Cleaner", "description": "Multi-surface floor cleaner", "price": 95.00, "unit": "liter", "stock": 35},
+                {"name": "Toilet Cleaner", "description": "Bathroom cleaning solution", "price": 85.00, "unit": "liter", "stock": 45},
+                {"name": "Glass Cleaner", "description": "Window and glass cleaner", "price": 75.00, "unit": "liter", "stock": 30},
+                {"name": "Air Freshener", "description": "Room freshener spray", "price": 150.00, "unit": "piece", "stock": 25}
             ],
-            "Dairy Products": [
-                {"name": "Milk", "description": "Fresh cow milk", "price": 60.00, "unit": "liter", "stock": 50},
-                {"name": "Curd", "description": "Fresh homemade curd", "price": 40.00, "unit": "kg", "stock": 30},
-                {"name": "Butter", "description": "Pure butter", "price": 120.00, "unit": "pack", "stock": 25},
-                {"name": "Cheese", "description": "Processed cheese", "price": 200.00, "unit": "pack", "stock": 20},
-                {"name": "Paneer", "description": "Fresh cottage cheese", "price": 180.00, "unit": "kg", "stock": 15}
+            "Personal Care": [
+                {"name": "Bathing Soap", "description": "Natural bathing soap", "price": 45.00, "unit": "piece", "stock": 80},
+                {"name": "Shampoo", "description": "Hair care shampoo", "price": 180.00, "unit": "liter", "stock": 50},
+                {"name": "Toothpaste", "description": "Dental care toothpaste", "price": 95.00, "unit": "piece", "stock": 70},
+                {"name": "Toothbrush", "description": "Soft bristle toothbrush", "price": 35.00, "unit": "piece", "stock": 100},
+                {"name": "Deodorant", "description": "Body deodorant spray", "price": 120.00, "unit": "piece", "stock": 40},
+                {"name": "Hair Oil", "description": "Natural hair oil", "price": 85.00, "unit": "liter", "stock": 35}
             ],
-            "Bakery": [
-                {"name": "Bread", "description": "Fresh white bread", "price": 35.00, "unit": "pack", "stock": 40},
-                {"name": "Buns", "description": "Soft dinner buns", "price": 25.00, "unit": "pack", "stock": 30},
-                {"name": "Cake", "description": "Vanilla sponge cake", "price": 150.00, "unit": "piece", "stock": 10},
-                {"name": "Cookies", "description": "Chocolate chip cookies", "price": 80.00, "unit": "pack", "stock": 25},
-                {"name": "Pastry", "description": "Chocolate pastry", "price": 45.00, "unit": "piece", "stock": 20}
-            ],
-            "Meat & Poultry": [
-                {"name": "Chicken", "description": "Fresh chicken", "price": 180.00, "unit": "kg", "stock": 25},
-                {"name": "Mutton", "description": "Fresh mutton", "price": 400.00, "unit": "kg", "stock": 15},
-                {"name": "Fish", "description": "Fresh fish", "price": 250.00, "unit": "kg", "stock": 20},
-                {"name": "Eggs", "description": "Farm fresh eggs", "price": 120.00, "unit": "dozen", "stock": 30},
-                {"name": "Pork", "description": "Fresh pork", "price": 300.00, "unit": "kg", "stock": 10}
-            ],
-            "Grains & Pulses": [
-                {"name": "Rice", "description": "Basmati rice", "price": 80.00, "unit": "kg", "stock": 100},
-                {"name": "Wheat", "description": "Whole wheat flour", "price": 45.00, "unit": "kg", "stock": 75},
-                {"name": "Lentils", "description": "Red lentils", "price": 120.00, "unit": "kg", "stock": 50},
-                {"name": "Chickpeas", "description": "White chickpeas", "price": 90.00, "unit": "kg", "stock": 40},
-                {"name": "Oats", "description": "Rolled oats", "price": 60.00, "unit": "kg", "stock": 30}
-            ],
-            "Spices & Condiments": [
-                {"name": "Salt", "description": "Iodized salt", "price": 20.00, "unit": "kg", "stock": 50},
-                {"name": "Sugar", "description": "Refined sugar", "price": 45.00, "unit": "kg", "stock": 60},
-                {"name": "Turmeric", "description": "Pure turmeric powder", "price": 150.00, "unit": "kg", "stock": 25},
-                {"name": "Chili Powder", "description": "Red chili powder", "price": 120.00, "unit": "kg", "stock": 30},
-                {"name": "Garam Masala", "description": "Mixed spices", "price": 200.00, "unit": "kg", "stock": 20}
-            ],
-            "Beverages": [
-                {"name": "Tea", "description": "Assam tea leaves", "price": 180.00, "unit": "kg", "stock": 40},
-                {"name": "Coffee", "description": "Filter coffee powder", "price": 250.00, "unit": "kg", "stock": 30},
-                {"name": "Juice", "description": "Orange juice", "price": 80.00, "unit": "liter", "stock": 25},
-                {"name": "Soda", "description": "Lemon soda", "price": 30.00, "unit": "bottle", "stock": 50},
-                {"name": "Water", "description": "Mineral water", "price": 20.00, "unit": "liter", "stock": 100}
-            ],
-            "Snacks": [
-                {"name": "Chips", "description": "Potato chips", "price": 20.00, "unit": "pack", "stock": 60},
-                {"name": "Nuts", "description": "Mixed nuts", "price": 300.00, "unit": "kg", "stock": 20},
-                {"name": "Biscuits", "description": "Cream biscuits", "price": 25.00, "unit": "pack", "stock": 40},
-                {"name": "Popcorn", "description": "Butter popcorn", "price": 15.00, "unit": "pack", "stock": 30},
-                {"name": "Chocolate", "description": "Dark chocolate", "price": 150.00, "unit": "pack", "stock": 25}
-            ],
-            "Frozen Foods": [
-                {"name": "Ice Cream", "description": "Vanilla ice cream", "price": 200.00, "unit": "liter", "stock": 15},
-                {"name": "Frozen Peas", "description": "Green peas", "price": 80.00, "unit": "kg", "stock": 20},
-                {"name": "Frozen Corn", "description": "Sweet corn", "price": 60.00, "unit": "kg", "stock": 25},
-                {"name": "Frozen Pizza", "description": "Margherita pizza", "price": 150.00, "unit": "piece", "stock": 10},
-                {"name": "Frozen Fish", "description": "Frozen fish fillets", "price": 300.00, "unit": "kg", "stock": 15}
+            "Snacks & Beverages": [
+                {"name": "Potato Chips", "description": "Crispy potato chips", "price": 20.00, "unit": "pack", "stock": 100},
+                {"name": "Mixed Nuts", "description": "Assorted dry fruits and nuts", "price": 350.00, "unit": "kg", "stock": 25},
+                {"name": "Biscuits", "description": "Cream biscuits", "price": 25.00, "unit": "pack", "stock": 80},
+                {"name": "Popcorn", "description": "Butter flavored popcorn", "price": 15.00, "unit": "pack", "stock": 60},
+                {"name": "Chocolate", "description": "Dark chocolate bar", "price": 150.00, "unit": "pack", "stock": 45},
+                {"name": "Tea Bags", "description": "Assam tea bags", "price": 180.00, "unit": "pack", "stock": 40},
+                {"name": "Coffee Powder", "description": "Filter coffee powder", "price": 250.00, "unit": "kg", "stock": 30},
+                {"name": "Juice Pack", "description": "Mixed fruit juice", "price": 80.00, "unit": "liter", "stock": 50},
+                {"name": "Soft Drink", "description": "Carbonated soft drink", "price": 30.00, "unit": "bottle", "stock": 75},
+                {"name": "Mineral Water", "description": "Pure mineral water", "price": 20.00, "unit": "liter", "stock": 120}
             ]
         }
         

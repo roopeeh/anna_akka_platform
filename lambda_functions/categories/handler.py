@@ -88,7 +88,8 @@ def create_category(category_data):
     # Validate category name
     validate_category_name(category_data['name'])
     
-    category_id = str(uuid.uuid4())
+    # Use provided ID if available, otherwise generate UUID
+    category_id = category_data.get('id', str(uuid.uuid4()))
     timestamp = datetime.utcnow().isoformat()
     
     category_item = {
@@ -393,6 +394,45 @@ def handle_create_category(body):
             }
             logger.info("=== CREATE CATEGORY HANDLER END ===")
             return response
+        
+        # Validate ID if provided
+        if 'id' in body:
+            provided_id = body['id']
+            if not provided_id or not str(provided_id).strip():
+                logger.warning("Invalid ID provided")
+                response = {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Category ID must not be empty'
+                        }
+                    })
+                }
+                logger.info("=== CREATE CATEGORY HANDLER END ===")
+                return response
+            
+            # Check if ID already exists
+            try:
+                existing_category = get_category_by_id(str(provided_id))
+                if existing_category:
+                    logger.warning(f"Category with ID '{provided_id}' already exists")
+                    response = {
+                        'statusCode': STATUS_CODES['CONFLICT'],
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': {
+                                'code': ERROR_CODES['CONFLICT'],
+                                'message': f'Category with ID "{provided_id}" already exists'
+                            }
+                        })
+                    }
+                    logger.info("=== CREATE CATEGORY HANDLER END ===")
+                    return response
+            except ValueError:
+                # Category doesn't exist, which is what we want
+                pass
         
         logger.info("Category name provided, creating category")
         category = create_category(body)

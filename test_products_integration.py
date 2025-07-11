@@ -218,7 +218,7 @@ class ProductsIntegrationTest:
         print("=" * 50)
         
         # Test get products by store
-        result = self.test_endpoint("GET", f"/stores/{self.test_data['store_id']}/products", expected_status=200, test_name="Get Store Products")
+        result = self.test_endpoint("GET", f"/products/stores/{self.test_data['store_id']}", expected_status=200, test_name="Get Store Products")
         if result:
             # Verify response structure
             if isinstance(result, dict) and 'body' in result:
@@ -270,7 +270,7 @@ class ProductsIntegrationTest:
             "category_id": self.test_data["category_id"]
         }
         
-        result = self.test_endpoint("POST", f"/stores/{self.test_data['store_id']}/products", product_data, 201, "Create Product - Success")
+        result = self.test_endpoint("POST", f"/products/stores/{self.test_data['store_id']}", product_data, 201, "Create Product - Success")
         if result:
             # Verify response structure
             if isinstance(result, dict) and 'body' in result:
@@ -310,14 +310,14 @@ class ProductsIntegrationTest:
         
         # Test create product with missing required fields
         incomplete_data = {"name": self.test_data["product_name"]}
-        self.test_endpoint("POST", f"/stores/{self.test_data['store_id']}/products", incomplete_data, 400, "Create Product - Missing Required Fields")
+        self.test_endpoint("POST", f"/products/stores/{self.test_data['store_id']}", incomplete_data, 400, "Create Product - Missing Required Fields")
         
         # Test create product with invalid price
         invalid_price_data = {
             "name": self.test_data["product_name"],
             "price": self.test_data["negative_price"]
         }
-        self.test_endpoint("POST", f"/stores/{self.test_data['store_id']}/products", invalid_price_data, 400, "Create Product - Negative Price")
+        self.test_endpoint("POST", f"/products/stores/{self.test_data['store_id']}", invalid_price_data, 400, "Create Product - Negative Price")
         
         # Test create product with invalid stock
         invalid_stock_data = {
@@ -325,7 +325,7 @@ class ProductsIntegrationTest:
             "price": self.test_data["product_price"],
             "stock": self.test_data["negative_stock"]
         }
-        self.test_endpoint("POST", f"/stores/{self.test_data['store_id']}/products", invalid_stock_data, 400, "Create Product - Negative Stock")
+        self.test_endpoint("POST", f"/products/stores/{self.test_data['store_id']}", invalid_stock_data, 400, "Create Product - Negative Stock")
 
     def test_update_product(self):
         """Test PUT /products/{id} endpoint"""
@@ -341,7 +341,7 @@ class ProductsIntegrationTest:
             "stock": 50
         }
         
-        create_result = self.test_endpoint("POST", f"/stores/{self.test_data['store_id']}/products", product_data, 201, "Create Product for Update")
+        create_result = self.test_endpoint("POST", f"/products/stores/{self.test_data['store_id']}", product_data, 201, "Create Product for Update")
         if create_result:
             product_id = None
             if isinstance(create_result, dict) and 'body' in create_result:
@@ -418,7 +418,7 @@ class ProductsIntegrationTest:
             "stock": 25
         }
         
-        create_result = self.test_endpoint("POST", f"/stores/{self.test_data['store_id']}/products", product_data, 201, "Create Product for Delete")
+        create_result = self.test_endpoint("POST", f"/products/stores/{self.test_data['store_id']}", product_data, 201, "Create Product for Delete")
         if create_result:
             product_id = None
             if isinstance(create_result, dict) and 'body' in create_result:

@@ -9,11 +9,11 @@ This document outlines the complete API specification for the grocery delivery a
 - Production: `https://your-domain.com/api`
 
 ## Authentication
-The API uses Firebase Authentication with JWT tokens.
+The API uses JWT tokens for authentication.
 
 ### Headers
 ```
-Authorization: Bearer <firebase-jwt-token>
+Authorization: Bearer <jwt-token>
 Content-Type: application/json
 ```
 
@@ -22,7 +22,7 @@ Content-Type: application/json
 ### User Profile
 ```typescript
 interface Profile {
-  id: string;              // Firebase Auth UID
+  id: string;              // User ID
   email: string;
   name: string;
   phone?: string;
@@ -37,7 +37,7 @@ interface Profile {
 ```typescript
 interface Store {
   id: string;
-  owner_id: string;        // Firebase UUID
+  owner_id: string;        // User ID
   name: string;
   address: string;
   phone?: string;
@@ -79,7 +79,7 @@ interface Product {
 ```typescript
 interface Order {
   id: string;
-  customer_id: string;     // Firebase UUID
+  customer_id: string;     // User ID
   store_id: string;
   total_amount: number;
   delivery_address: string;
@@ -230,7 +230,7 @@ Get all available stores.
     {
       "id": "store1",
       "owner_id": "firebase-uuid-owner1",
-      "name": "Fresh Vegetables Store",
+      "name": "Fresh Market Store",
       "address": "123 Market Street, Bangalore",
       "phone": "+91 98765 43210",
       "is_open": true,
@@ -257,7 +257,7 @@ Get specific store details.
 {
   "id": "store1",
   "owner_id": "firebase-uuid-owner1",
-  "name": "Fresh Vegetables Store",
+          "name": "Fresh Market Store",
   "address": "123 Market Street, Bangalore",
   "phone": "+91 98765 43210",
   "is_open": true,
@@ -371,13 +371,13 @@ Get all product categories.
 {
   "categories": [
     {
-      "id": "cat1",
-      "name": "Vegetables",
+      "id": "1",
+      "name": "Rice & More",
       "created_at": "2024-01-01T00:00:00Z"
     },
     {
-      "id": "cat2",
-      "name": "Fruits",
+      "id": "2",
+      "name": "Household Essentials",
       "created_at": "2024-01-01T00:00:00Z"
     }
   ]
@@ -392,7 +392,7 @@ Create a new category (Admin only).
 **Request Body:**
 ```json
 {
-  "name": "Dairy Products"
+  "name": "Personal Care"
 }
 ```
 
@@ -400,7 +400,7 @@ Create a new category (Admin only).
 ```json
 {
   "id": "cat-generated-id",
-  "name": "Dairy Products",
+  "name": "Personal Care",
   "created_at": "2024-01-15T14:00:00Z"
 }
 ```

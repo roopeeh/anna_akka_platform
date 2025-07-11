@@ -8,18 +8,18 @@ This document provides comprehensive documentation for all API endpoints in the 
 - Production: `https://your-api-gateway-url/prod`
 
 ## Authentication
-The API uses Firebase Authentication with JWT tokens. The system supports authentication using either Firebase UID or phone number for enhanced flexibility.
+The API uses JWT tokens for authentication. The system supports authentication using either user ID or phone number for enhanced flexibility.
 
 ### Headers
 ```
-Authorization: Bearer <firebase-jwt-token>
+Authorization: Bearer <jwt-token>
 Content-Type: application/json
 ```
 
 ### Authentication Methods
-1. **Firebase UID**: Primary authentication method using Firebase Authentication UID
+1. **User ID**: Primary authentication method using user ID
 2. **Phone Number**: Alternative authentication method for users who prefer phone-based login
-3. **Combined**: Enhanced validation using both Firebase UID and phone number
+3. **Combined**: Enhanced validation using both user ID and phone number
 
 ### Database Optimizations
 - **Global Secondary Indexes (GSI)**: Optimized phone and email lookups using DynamoDB GSIs
@@ -63,14 +63,14 @@ Content-Type: application/json
 #### POST /auth/register
 Register a new user account.
 
-**Description:** Creates a new user account using Firebase UID for authentication. The system performs comprehensive validation including phone number uniqueness checks using optimized DynamoDB Global Secondary Indexes (GSI).
+**Description:** Creates a new user account using user ID for authentication. The system performs comprehensive validation including phone number uniqueness checks using optimized DynamoDB Global Secondary Indexes (GSI).
 
 **Request Body:**
 ```json
 {
   "email": "user@example.com",
   "name": "John Doe",
-  "firebase_uid": "firebase-auth-uid-123",
+  "user_id": "user-123",
   "roles": ["customer", "admin"],
   "phone": "+91 98765 43210",
   "address": "123 Main St, Bangalore"
@@ -80,7 +80,7 @@ Register a new user account.
 **Required Fields:**
 - `email`: User's email address
 - `name`: User's full name
-- `firebase_uid`: Firebase Authentication UID
+- `user_id`: User ID
 
 **Optional Fields:**
 - `roles`: Array of roles - can include "customer", "vendor", "admin" (default: ["customer"])
@@ -128,17 +128,17 @@ The registration endpoint performs comprehensive phone number validation:
 
 **Error Responses:**
 - `400 Bad Request`: Missing required fields or invalid roles
-- `409 Conflict`: User already exists with Firebase UID, email, or phone number
+- `409 Conflict`: User already exists with user ID, email, or phone number
 
 #### POST /auth/login
-Authenticate user using Firebase UID or phone number.
+Authenticate user using user ID or phone number.
 
-**Description:** Validates user existence using Firebase UID or phone number for login. The system will try Firebase UID first, then fall back to phone number if user is not found.
+**Description:** Validates user existence using user ID or phone number for login. The system will try user ID first, then fall back to phone number if user is not found.
 
-**Request Body (Firebase UID):**
+**Request Body (User ID):**
 ```json
 {
-  "firebase_uid": "firebase-auth-uid-123"
+  "user_id": "user-123"
 }
 ```
 
@@ -152,13 +152,13 @@ Authenticate user using Firebase UID or phone number.
 **Request Body (Both - for enhanced validation):**
 ```json
 {
-  "firebase_uid": "firebase-auth-uid-123",
+  "user_id": "user-123",
   "phone": "+91 98765 43210"
 }
 ```
 
 **Required Fields:**
-- Either `firebase_uid` OR `phone` (at least one must be provided)
+- Either `user_id` OR `phone` (at least one must be provided)
 
 **Phone Number Support:**
 The login endpoint supports various phone number formats:
@@ -174,8 +174,8 @@ Phone numbers are automatically normalized to consistent format:
 - Final format: `+919876543210`
 
 **Login Priority:**
-1. Firebase UID (if provided) - checked first
-2. Phone number (if provided) - checked if Firebase UID not found or not provided
+1. User ID (if provided) - checked first
+2. Phone number (if provided) - checked if user ID not found or not provided
 
 **Response (200 - OK):**
 ```json
@@ -192,7 +192,7 @@ Phone numbers are automatically normalized to consistent format:
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Missing both firebase_uid and phone
+- `400 Bad Request`: Missing both user_id and phone
 - `401 Unauthorized`: User not found with provided identifiers
 
 #### GET /auth/user/phone
@@ -252,7 +252,7 @@ Get current user's profile.
 
 **Description:** Retrieves the profile information for the authenticated user.
 
-**Headers:** `Authorization: Bearer <firebase-jwt-token>`
+**Headers:** `Authorization: Bearer <jwt-token>`
 
 **Response (200 - OK):**
 ```json
@@ -576,7 +576,7 @@ GET /stores?page=1&limit=5&search=fresh&is_open=true
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
   },
-  "body": "{\"stores\": [{\"id\": \"store1\", \"owner_id\": \"firebase-uuid-owner1\", \"name\": \"Fresh Vegetables Store\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": true, \"rating\": 4.5, \"delivery_time\": \"30-45 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T09:30:00Z\"}], \"pagination\": {\"current_page\": 1, \"total_pages\": 5, \"total_items\": 45, \"items_per_page\": 10}}"
+  "body": "{\"stores\": [{\"id\": \"store1\", \"owner_id\": \"user-123\", \"name\": \"Fresh Market Store\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": true, \"rating\": 4.5, \"delivery_time\": \"30-45 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T09:30:00Z\"}], \"pagination\": {\"current_page\": 1, \"total_pages\": 5, \"total_items\": 45, \"items_per_page\": 10}}"
 }
 ```
 
@@ -603,7 +603,7 @@ GET /stores/store1
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
   },
-  "body": "{\"store\": {\"id\": \"store1\", \"owner_id\": \"firebase-uuid-owner1\", \"name\": \"Fresh Vegetables Store\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": true, \"rating\": 4.5, \"delivery_time\": \"30-45 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T09:30:00Z\"}}"
+  "body": "{\"store\": {\"id\": \"store1\", \"owner_id\": \"user-123\", \"name\": \"Fresh Market Store\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": true, \"rating\": 4.5, \"delivery_time\": \"30-45 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T09:30:00Z\"}}"
 }
 ```
 
@@ -645,7 +645,7 @@ Create a new store (Owner only).
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
   },
-  "body": "{\"id\": \"store-generated-id\", \"owner_id\": \"firebase-auth-uid\", \"name\": \"New Grocery Store\", \"address\": \"789 New Street, Delhi\", \"phone\": \"+91 87654 32109\", \"is_open\": true, \"rating\": 0, \"delivery_time\": \"25-40 min\", \"created_at\": \"2024-01-15T12:00:00Z\", \"updated_at\": \"2024-01-15T12:00:00Z\"}"
+  "body": "{\"id\": \"store-generated-id\", \"owner_id\": \"user-123\", \"name\": \"New Grocery Store\", \"address\": \"789 New Street, Delhi\", \"phone\": \"+91 87654 32109\", \"is_open\": true, \"rating\": 0, \"delivery_time\": \"25-40 min\", \"created_at\": \"2024-01-15T12:00:00Z\", \"updated_at\": \"2024-01-15T12:00:00Z\"}"
 }
 ```
 
@@ -689,7 +689,7 @@ Update store details (Owner only).
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
   },
-  "body": "{\"id\": \"store1\", \"owner_id\": \"firebase-auth-uid\", \"name\": \"Updated Store Name\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": false, \"rating\": 4.5, \"delivery_time\": \"35-50 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T13:15:00Z\"}"
+  "body": "{\"id\": \"store1\", \"owner_id\": \"user-123\", \"name\": \"Updated Store Name\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": false, \"rating\": 4.5, \"delivery_time\": \"35-50 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T13:15:00Z\"}"
 }
 ```
 
@@ -745,7 +745,7 @@ Get stores owned by current user (Owner only).
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
   },
-  "body": "{\"stores\": [{\"id\": \"store1\", \"owner_id\": \"firebase-auth-uid\", \"name\": \"My Grocery Store\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": true, \"rating\": 4.5, \"delivery_time\": \"30-45 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T09:30:00Z\"}]}"
+  "body": "{\"stores\": [{\"id\": \"store1\", \"owner_id\": \"user-123\", \"name\": \"My Grocery Store\", \"address\": \"123 Market Street, Bangalore\", \"phone\": \"+91 98765 43210\", \"is_open\": true, \"rating\": 4.5, \"delivery_time\": \"30-45 min\", \"created_at\": \"2024-01-10T08:00:00Z\", \"updated_at\": \"2024-01-15T09:30:00Z\"}]}"
 }
 ```
 
@@ -769,7 +769,7 @@ Get all product categories.
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
   },
-  "body": "{\"categories\": [{\"id\": \"cat1\", \"name\": \"Vegetables\", \"created_at\": \"2024-01-10T08:00:00Z\"}, {\"id\": \"cat2\", \"name\": \"Fruits\", \"created_at\": \"2024-01-10T08:00:00Z\"}]}"
+  "body": "{\"categories\": [{\"id\": \"1\", \"name\": \"Rice & More\", \"created_at\": \"2024-01-10T08:00:00Z\"}, {\"id\": \"2\", \"name\": \"Household Essentials\", \"created_at\": \"2024-01-10T08:00:00Z\"}]}"
 }
 ```
 
@@ -781,7 +781,7 @@ Create a new category.
 **Request Body:**
 ```json
 {
-  "name": "Dairy Products"
+  "name": "Personal Care"
 }
 ```
 
@@ -798,7 +798,7 @@ Create a new category.
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
   },
-  "body": "{\"id\": \"cat-generated-id\", \"name\": \"Dairy Products\", \"created_at\": \"2024-01-15T12:00:00Z\"}"
+  "body": "{\"id\": \"cat-generated-id\", \"name\": \"Personal Care\", \"created_at\": \"2024-01-15T12:00:00Z\"}"
 }
 ```
 
@@ -1046,6 +1046,53 @@ Delete a product (Owner only).
 - `401 Unauthorized`: Invalid or missing token
 - `404 Not Found`: Product not found
 - `403 Forbidden`: Not authorized to delete this product
+
+### 5. Store Product IDs Management Endpoints
+
+#### POST /stores/update-product-ids
+Update all stores with their product IDs from available products.
+
+**Description:** Updates all stores to include a list of available product IDs that each store has in their inventory. This endpoint automatically scans all stores and their products to build the product_ids list.
+
+**Response (200 - OK):**
+```json
+{
+  "statusCode": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+  },
+  "body": "{\"message\": \"Updated 5 stores with product IDs\", \"updated_count\": 5}"
+}
+```
+
+#### POST /stores/{storeId}/update-product-ids
+Update a specific store with its product IDs from available products.
+
+**Description:** Updates a specific store to include a list of available product IDs that the store has in their inventory.
+
+**Path Parameters:**
+- `storeId`: Store ID
+
+**Response (200 - OK):**
+```json
+{
+  "statusCode": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+  },
+  "body": "{\"message\": \"Store product IDs updated successfully\", \"store\": {\"id\": \"store1\", \"name\": \"My Store\", \"product_ids\": [\"avail-prod-1\", \"avail-prod-2\", \"avail-prod-3\"], \"updated_at\": \"2024-01-15T14:30:00Z\"}}"
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Store not found
+- `500 Internal Server Error`: Failed to update store product IDs
 
 ### 6. Order Management Endpoints
 
@@ -1497,20 +1544,20 @@ Pagination response includes:
 
 ## Authentication Flow
 
-1. User registers with Firebase Authentication
-2. User receives Firebase UID
-3. User calls `/auth/register` with Firebase UID to create profile (phone number validation included)
+1. User registers with the system
+2. User receives user ID
+3. User calls `/auth/register` with user ID to create profile (phone number validation included)
 4. User can login using either:
-   - Firebase UID: `/auth/login` with `firebase_uid`
+   - User ID: `/auth/login` with `user_id`
    - Phone Number: `/auth/login` with `phone`
-   - Enhanced: `/auth/login` with both `firebase_uid` and `phone`
-5. Include Firebase JWT token in Authorization header for protected endpoints
+   - Enhanced: `/auth/login` with both `user_id` and `phone`
+5. Include JWT token in Authorization header for protected endpoints
 6. Optional: Use `/auth/user/phone?phone=<number>` to validate phone number existence
 
 ## Data Models Summary
 
 ### User
-- `id`: Firebase UID
+- `id`: User ID
 - `email`: Email address
 - `name`: Full name
 - `user_type`: "customer" or "owner"
@@ -1521,7 +1568,7 @@ Pagination response includes:
 
 ### Store
 - `id`: Unique store ID
-- `owner_id`: Firebase UID of owner
+- `owner_id`: User ID of owner
 - `name`: Store name
 - `address`: Store address
 - `phone`: Store phone (optional)
@@ -1546,7 +1593,7 @@ Pagination response includes:
 
 ### Order
 - `id`: Unique order ID
-- `customer_id`: Firebase UID of customer
+- `customer_id`: User ID of customer
 - `store_id`: Associated store ID
 - `total_amount`: Order total
 - `delivery_address`: Delivery address
@@ -1556,7 +1603,7 @@ Pagination response includes:
 - `updated_at`: Last update timestamp
 
 ### Cart Item
-- `customer_id`: Firebase UID of customer
+- `customer_id`: User ID of customer
 - `product_id`: Product ID
 - `store_id`: Associated store ID
 - `quantity`: Item quantity

@@ -12,16 +12,10 @@ DELAY_BETWEEN_REQUESTS = 0.1  # Delay in seconds between API requests
 
 # Product Categories to Create
 CATEGORIES = [
-    "Vegetables",
-    "Fruits", 
-    "Dairy Products",
-    "Bakery",
-    "Meat & Poultry",
-    "Grains & Pulses",
-    "Spices & Condiments",
-    "Beverages",
-    "Snacks",
-    "Frozen Foods"
+    {"name": "Rice & More", "id": "1"},
+    {"name": "Household Essentials", "id": "2"},
+    {"name": "Personal Care", "id": "3"},
+    {"name": "Snacks & Beverages", "id": "4"}
 ]
 
 # Store Information
