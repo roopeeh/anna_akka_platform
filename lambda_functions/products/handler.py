@@ -8,6 +8,90 @@ from decimal import Decimal
 import sys
 sys.path.append('..')
 
+def decimal_default(obj):
+    """Convert Decimal objects to strings for JSON serialization"""
+    if isinstance(obj, Decimal):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+def extract_user_id_from_request(event):
+    """Extract user ID from request context or headers"""
+    try:
+        # Try to get user ID from request context (API Gateway authorizer)
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check for user ID in authorizer claims
+        if authorizer:
+            user_id = authorizer.get('claims', {}).get('sub') or authorizer.get('user_id')
+            if user_id:
+                logger.info(f"Extracted user ID from authorizer: {user_id}")
+                return user_id
+        
+        # Check for user ID in headers
+        headers = event.get('headers', {}) or {}
+        user_id = headers.get('X-User-ID') or headers.get('x-user-id')
+        if user_id:
+            logger.info(f"Extracted user ID from headers: {user_id}")
+            return user_id
+        
+        # For development/testing, check for user ID in query parameters
+        query_params = event.get('queryStringParameters', {}) or {}
+        user_id = query_params.get('user_id')
+        if user_id:
+            logger.info(f"Extracted user ID from query params: {user_id}")
+            return user_id
+        
+        logger.warning("No user ID found in request context, headers, or query parameters")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting user ID: {str(e)}")
+        return None
+
+def extract_store_id_from_request(event, body):
+    """Extract store ID from request path, body, or headers"""
+    try:
+        # First try to get store_id from the request path
+        path = event.get('requestContext', {}).get('http', {}).get('path', '')
+        if '/stores/' in path and '/products' in path:
+            path_parts = path.split('/')
+            try:
+                stores_index = path_parts.index('stores')
+                if stores_index + 1 < len(path_parts):
+                    store_id = path_parts[stores_index + 1]
+                    logger.info(f"Extracted store ID from path: {store_id}")
+                    return store_id
+            except ValueError:
+                pass
+        
+        # Try to get store_id from request body
+        if body and body.get('store_id'):
+            store_id = body.get('store_id')
+            logger.info(f"Extracted store ID from body: {store_id}")
+            return store_id
+        
+        # Check for store_id in headers
+        headers = event.get('headers', {}) or {}
+        store_id = headers.get('X-Store-ID') or headers.get('x-store-id')
+        if store_id:
+            logger.info(f"Extracted store ID from headers: {store_id}")
+            return store_id
+        
+        # For development/testing, check for store_id in query parameters
+        query_params = event.get('queryStringParameters', {}) or {}
+        store_id = query_params.get('store_id')
+        if store_id:
+            logger.info(f"Extracted store ID from query params: {store_id}")
+            return store_id
+        
+        logger.warning("No store ID found in request path, body, headers, or query parameters")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting store ID: {str(e)}")
+        return None
+
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -47,7 +131,7 @@ STATUS_CODES = {
 CORS_HEADERS = {
     'Content-Type': os.environ.get('CORS_HEADERS_CONTENT_TYPE', 'application/json'),
     'Access-Control-Allow-Origin': os.environ.get('CORS_HEADERS_ACCESS_CONTROL_ORIGIN', '*'),
-    'Access-Control-Allow-Headers': os.environ.get('CORS_HEADERS_ACCESS_CONTROL_HEADERS', 'Content-Type,Authorization'),
+    'Access-Control-Allow-Headers': os.environ.get('CORS_HEADERS_ACCESS_CONTROL_HEADERS', 'Content-Type,Authorization,X-Requested-With'),
     'Access-Control-Allow-Methods': os.environ.get('CORS_HEADERS_ACCESS_CONTROL_METHODS', 'GET,POST,PUT,DELETE,OPTIONS')
 }
 
@@ -64,9 +148,9 @@ ALLOWED_UPDATE_FIELDS = {
     'PRODUCT': ['name', 'description', 'price', 'unit', 'stock', 'image_url', 'category_id']
 }
 
-def get_products_with_pagination(page=1, limit=20, store_id=None, category_id=None, search=None, min_price=None, max_price=None, in_stock=None):
+def get_products_with_pagination(page=1, limit=20, store_id=None, category_id=None, search=None, min_price=None, max_price=None, in_stock=None, available_product_id=None):
     """Get products with pagination and filtering"""
-    logger.info(f"Getting products with filters - page: {page}, limit: {limit}, store_id: {store_id}, category_id: {category_id}, search: {search}, min_price: {min_price}, max_price: {max_price}, in_stock: {in_stock}")
+    logger.info(f"Getting products with filters - page: {page}, limit: {limit}, store_id: {store_id}, category_id: {category_id}, search: {search}, min_price: {min_price}, max_price: {max_price}, in_stock: {in_stock}, available_product_id: {available_product_id}")
     
     scan_kwargs = {}
     
@@ -109,6 +193,11 @@ def get_products_with_pagination(page=1, limit=20, store_id=None, category_id=No
         expression_values[':zero'] = 0
         expression_names['#stock'] = 'stock'
     
+    if available_product_id:
+        filter_expressions.append("#available_product_id = :available_product_id")
+        expression_values[':available_product_id'] = available_product_id
+        expression_names['#available_product_id'] = 'available_product_id'
+    
     if filter_expressions:
         scan_kwargs['FilterExpression'] = ' AND '.join(filter_expressions)
         scan_kwargs['ExpressionAttributeValues'] = expression_values
@@ -139,6 +228,34 @@ def get_products_with_pagination(page=1, limit=20, store_id=None, category_id=No
     
     logger.info(f"Returning {len(paginated_products)} products for page {page}")
     return result
+
+def get_product_by_store_and_available_product(store_id, available_product_id):
+    """Get product by store ID and available product ID"""
+    logger.info(f"Getting product for store ID: {store_id}, available product ID: {available_product_id}")
+    
+    scan_kwargs = {
+        'FilterExpression': '#store_id = :store_id AND #available_product_id = :available_product_id',
+        'ExpressionAttributeValues': {
+            ':store_id': store_id,
+            ':available_product_id': available_product_id
+        },
+        'ExpressionAttributeNames': {
+            '#store_id': 'store_id',
+            '#available_product_id': 'available_product_id'
+        }
+    }
+    
+    logger.info(f"Scan kwargs: {json.dumps(scan_kwargs, default=str)}")
+    
+    response = products_table.scan(**scan_kwargs)
+    products = response.get('Items', [])
+    
+    logger.info(f"Found {len(products)} products for store {store_id} and available product {available_product_id}")
+    
+    # Return the first product found (should be unique combination)
+    product = products[0] if products else None
+    logger.info(f"Product lookup result: {'Found' if product else 'Not found'}")
+    return product
 
 def get_product_by_id(product_id):
     """Get product by ID"""
@@ -230,7 +347,7 @@ def create_product(product_data, store_id):
             'id': product_id,
             'store_id': store_id,
             'available_product_id': available_product_id,
-            'category_id': available_product_item.get('category_id'),
+            'category_id': available_product_item.get('category_id', 'uncategorized'),  # Default category
             'name': available_product_item['name'],
             'description': available_product_item.get('description'),
             'price': Decimal(str(product_data.get('price', available_product_item['price']))),  # Allow store to set their own price
@@ -250,7 +367,7 @@ def create_product(product_data, store_id):
         product_item = {
             'id': product_id,
             'store_id': store_id,
-            'category_id': product_data.get('category_id'),
+            'category_id': product_data.get('category_id', 'uncategorized'),  # Default category
             'name': product_data['name'],
             'description': product_data.get('description'),
             'price': Decimal(str(product_data['price'])),
@@ -264,7 +381,7 @@ def create_product(product_data, store_id):
         # Also add to available products catalog
         available_product_item = {
             'id': str(uuid.uuid4()),
-            'category_id': product_data.get('category_id'),
+            'category_id': product_data.get('category_id', 'uncategorized'),  # Default category
             'name': product_data['name'],
             'description': product_data.get('description'),
             'price': Decimal(str(product_data['price'])),
@@ -407,8 +524,21 @@ def handler(event, context):
         logger.info(f"Query parameters: {json.dumps(query_params, default=str)}")
         
         # Parse body
-        body = json.loads(event.get('body', '{}'))
-        logger.info(f"Request body: {json.dumps(body, default=str)}")
+        try:
+            body = json.loads(event.get('body', '{}'))
+            logger.info(f"Request body: {json.dumps(body, default=str)}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Malformed JSON in request body: {str(e)}")
+            return {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Malformed JSON in request body'
+                    }
+                })
+            }
         
         # Route based on path and method
         # Handle both with and without stage prefix (/dev/products or /products)
@@ -418,6 +548,33 @@ def handler(event, context):
                 response = handle_get_products(query_params)
                 logger.info(f"Get products response: {json.dumps(response, default=str)}")
                 return response
+            elif method == 'POST':
+                logger.info("Routing to create product handler (general)")
+                # For POST /products, we need a store_id in the body or use a default
+                store_id = extract_store_id_from_request(event, body)
+                if not store_id:
+                    response = {
+                        'statusCode': STATUS_CODES['BAD_REQUEST'],
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': {
+                                'code': ERROR_CODES['VALIDATION_ERROR'],
+                                'message': 'Store ID is required'
+                            }
+                        })
+                    }
+                    logger.info("=== PRODUCTS HANDLER END ===")
+                    return response
+                response = handle_create_product(event, body, store_id)
+                logger.info(f"Create product response: {json.dumps(response, default=str)}")
+                return response
+            elif method == 'OPTIONS':
+                logger.info("Handling OPTIONS request for CORS preflight")
+                return {
+                    'statusCode': STATUS_CODES['OK'],
+                    'headers': CORS_HEADERS,
+                    'body': ''
+                }
             elif method in ['PUT', 'DELETE']:
                 logger.warning(f"Method not allowed: {method} for /products")
                 return {
@@ -430,25 +587,39 @@ def handler(event, context):
                         }
                     })
                 }
-        elif (path.startswith('/products/') or path.endswith('/products/')) and method == 'GET':
+        elif '/products/' in path and method == 'GET':
             # Extract product_id from path, handling both /products/{id} and /dev/products/{id}
-            path_parts = path.split('/')
-            product_id = path_parts[-1]
-            logger.info(f"Routing to get product handler for ID: {product_id}")
-            response = handle_get_product(product_id)
-            logger.info(f"Get product response: {json.dumps(response, default=str)}")
-            return response
-        elif (path.startswith('/products/stores/') or path.endswith('/products/stores/')) and method == 'GET':
-            # Handle /products/stores/{storeId} and /dev/products/stores/{storeId}
+            # Find the product_id after the last '/products/' in the path
+            products_index = path.rfind('/products/')
+            if products_index != -1:
+                product_id = path[products_index + 10:]  # '/products/' is 10 characters
+                logger.info(f"Routing to get product handler for ID: {product_id}")
+                response = handle_get_product(product_id)
+                logger.info(f"Get product response: {json.dumps(response, default=str)}")
+                return response
+            else:
+                logger.warning("Could not extract product_id from path")
+                return {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Invalid product ID in path'
+                        }
+                    })
+                }
+        elif (path.startswith('/stores/') and '/products' in path) and method == 'GET':
+            # Handle GET /stores/{store_id}/products and /dev/stores/{store_id}/products
             path_parts = path.split('/')
             logger.info(f"Path parts for GET store products: {path_parts}")
             
-            # Find store_id in the path parts - look for 'stores' after 'products'
+            # Find store_id in the path parts - look for 'stores' then the next part
             store_id = None
             try:
-                products_index = path_parts.index('products')
-                if products_index + 2 < len(path_parts) and path_parts[products_index + 1] == 'stores':
-                    store_id = path_parts[products_index + 2]
+                stores_index = path_parts.index('stores')
+                if stores_index + 1 < len(path_parts):
+                    store_id = path_parts[stores_index + 1]
                     logger.info(f"Extracted store_id for get products: {store_id}")
                     logger.info(f"Routing to get store products handler for store ID: {store_id}")
                     response = handle_get_store_products(store_id, query_params)
@@ -467,7 +638,7 @@ def handler(event, context):
                         })
                     }
             except ValueError:
-                logger.warning("Could not find 'products/stores' in path for get products")
+                logger.warning("Could not find 'stores' in path for get products")
                 return {
                     'statusCode': STATUS_CODES['BAD_REQUEST'],
                     'headers': CORS_HEADERS,
@@ -478,17 +649,17 @@ def handler(event, context):
                         }
                     })
                 }
-        elif (path.startswith('/products/stores/') or path.endswith('/products/stores/')) and method == 'POST':
-            # Handle POST /products/stores/{storeId} and /dev/products/stores/{storeId}
+        elif (path.startswith('/stores/') and '/products' in path) and method == 'POST':
+            # Handle POST /stores/{store_id}/products and /dev/stores/{store_id}/products
             path_parts = path.split('/')
             logger.info(f"Path parts for POST store products: {path_parts}")
             
-            # Find store_id in the path parts - look for 'stores' after 'products'
+            # Find store_id in the path parts - look for 'stores' then the next part
             store_id = None
             try:
-                products_index = path_parts.index('products')
-                if products_index + 2 < len(path_parts) and path_parts[products_index + 1] == 'stores':
-                    store_id = path_parts[products_index + 2]
+                stores_index = path_parts.index('stores')
+                if stores_index + 1 < len(path_parts):
+                    store_id = path_parts[stores_index + 1]
                     logger.info(f"Extracted store_id for product creation: {store_id}")
                     logger.info(f"Routing to create product handler for store ID: {store_id}")
                     response = handle_create_product(event, body, store_id)
@@ -507,7 +678,7 @@ def handler(event, context):
                         })
                     }
             except ValueError:
-                logger.warning("Could not find 'products/stores' in path for product creation")
+                logger.warning("Could not find 'stores' in path for product creation")
                 return {
                     'statusCode': STATUS_CODES['BAD_REQUEST'],
                     'headers': CORS_HEADERS,
@@ -518,32 +689,54 @@ def handler(event, context):
                         }
                     })
                 }
-        elif (path.startswith('/products/') or path.endswith('/products/')) and method == 'PUT':
+        elif '/products/' in path and method == 'PUT':
             # Extract product_id from path, handling both /products/{id} and /dev/products/{id}
-            path_parts = path.split('/')
-            product_id = path_parts[-1]
-            logger.info(f"Routing to update product handler for ID: {product_id}")
-            response = handle_update_product(event, product_id, body)
-            logger.info(f"Update product response: {json.dumps(response, default=str)}")
-            return response
-        elif (path.startswith('/products/') or path.endswith('/products/')) and method == 'DELETE':
+            products_index = path.rfind('/products/')
+            if products_index != -1:
+                product_id = path[products_index + 10:]  # '/products/' is 10 characters
+                logger.info(f"Routing to update product handler for ID: {product_id}")
+                response = handle_update_product(event, product_id, body)
+                logger.info(f"Update product response: {json.dumps(response, default=str)}")
+                return response
+            else:
+                logger.warning("Could not extract product_id from path")
+                return {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Invalid product ID in path'
+                        }
+                    })
+                }
+        elif '/products/' in path and method == 'DELETE':
             # Extract product_id from path, handling both /products/{id} and /dev/products/{id}
-            path_parts = path.split('/')
-            product_id = path_parts[-1]
-            logger.info(f"Routing to delete product handler for ID: {product_id}")
-            response = handle_delete_product(event, product_id)
-            logger.info(f"Delete product response: {json.dumps(response, default=str)}")
-            return response
+            products_index = path.rfind('/products/')
+            if products_index != -1:
+                product_id = path[products_index + 10:]  # '/products/' is 10 characters
+                logger.info(f"Routing to delete product handler for ID: {product_id}")
+                response = handle_delete_product(event, product_id)
+                logger.info(f"Delete product response: {json.dumps(response, default=str)}")
+                return response
+            else:
+                logger.warning("Could not extract product_id from path")
+                return {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Invalid product ID in path'
+                        }
+                    })
+                }
+
         else:
             logger.warning(f"Endpoint not found: {method} {path}")
             return {
                 'statusCode': 404,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-                },
+                'headers': CORS_HEADERS,
                 'body': json.dumps({
                     'error': {
                         'code': 'NOT_FOUND',
@@ -581,17 +774,46 @@ def handle_get_products(query_params):
         in_stock = query_params.get('in_stock')
         if in_stock is not None:
             in_stock = in_stock.lower() == 'true'
+        available_product_id = query_params.get('available_product_id')
         
-        logger.info(f"Getting products with filters - page: {page}, limit: {limit}, store_id: {store_id}, category_id: {category_id}, search: {search}, min_price: {min_price}, max_price: {max_price}, in_stock: {in_stock}")
+        # If both store_id and available_product_id are provided, get specific product
+        if store_id and available_product_id:
+            logger.info(f"Getting specific product for store ID: {store_id}, available product ID: {available_product_id}")
+            product = get_product_by_store_and_available_product(store_id, available_product_id)
+            if not product:
+                logger.warning(f"Product not found for store ID: {store_id}, available product ID: {available_product_id}")
+                response = {
+                    'statusCode': STATUS_CODES['NOT_FOUND'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['NOT_FOUND'],
+                            'message': 'Product not found for this store and available product combination'
+                        }
+                    })
+                }
+                logger.info("=== GET PRODUCTS HANDLER END ===")
+                return response
+            
+            response = {
+                'statusCode': STATUS_CODES['OK'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'product': product}, default=decimal_default)
+            }
+            logger.info("=== GET PRODUCTS HANDLER END ===")
+            return response
+        
+        # Otherwise, get products with pagination and filtering
+        logger.info(f"Getting products with filters - page: {page}, limit: {limit}, store_id: {store_id}, category_id: {category_id}, search: {search}, min_price: {min_price}, max_price: {max_price}, in_stock: {in_stock}, available_product_id: {available_product_id}")
         
         result = get_products_with_pagination(
-            page, limit, store_id, category_id, search, min_price, max_price, in_stock
+            page, limit, store_id, category_id, search, min_price, max_price, in_stock, available_product_id
         )
         
         response = {
             'statusCode': STATUS_CODES['OK'],
             'headers': CORS_HEADERS,
-            'body': json.dumps(result)
+            'body': json.dumps(result, default=decimal_default)
         }
         
         logger.info("=== GET PRODUCTS HANDLER END ===")
@@ -635,7 +857,7 @@ def handle_get_product(product_id):
         response = {
             'statusCode': STATUS_CODES['OK'],
             'headers': CORS_HEADERS,
-            'body': json.dumps({'product': product})
+            'body': json.dumps({'product': product}, default=decimal_default)
         }
         
         logger.info("=== GET PRODUCT HANDLER END ===")
@@ -670,7 +892,7 @@ def handle_get_store_products(store_id, query_params):
         response = {
             'statusCode': STATUS_CODES['OK'],
             'headers': CORS_HEADERS,
-            'body': json.dumps(result)
+            'body': json.dumps(result, default=decimal_default)
         }
         
         logger.info("=== GET STORE PRODUCTS HANDLER END ===")
@@ -693,9 +915,24 @@ def handle_create_product(event, body, store_id):
     """Handle POST /stores/{storeId}/products"""
     logger.info("=== CREATE PRODUCT HANDLER START ===")
     try:
-        # For now, use a mock owner ID - security will be implemented later
-        owner_id = 'mock-owner-id'
-        logger.info(f"Creating product for store ID: {store_id}")
+        # Extract user ID for authorization
+        user_id = extract_user_id_from_request(event)
+        if not user_id:
+            logger.warning("User ID not found in request for create product")
+            response = {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+            logger.info("=== CREATE PRODUCT HANDLER END ===")
+            return response
+        
+        logger.info(f"Creating product for store ID: {store_id} by user ID: {user_id}")
         logger.info(f"Product data: {json.dumps(body, default=str)}")
         
         # Validate required fields
@@ -714,12 +951,61 @@ def handle_create_product(event, body, store_id):
             logger.info("=== CREATE PRODUCT HANDLER END ===")
             return response
         
+        # Validate price is positive
+        try:
+            price = float(body.get('price', 0))
+            if price <= 0:
+                logger.warning("Invalid price: must be positive")
+                response = {
+                    'statusCode': STATUS_CODES['BAD_REQUEST'],
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': {
+                            'code': ERROR_CODES['VALIDATION_ERROR'],
+                            'message': 'Price must be positive'
+                        }
+                    })
+                }
+                logger.info("=== CREATE PRODUCT HANDLER END ===")
+                return response
+        except (ValueError, TypeError):
+            logger.warning("Invalid price format")
+            response = {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Invalid price format'
+                    }
+                })
+            }
+            logger.info("=== CREATE PRODUCT HANDLER END ===")
+            return response
+        
+        # Validate stock is non-negative
+        stock = body.get('stock', 0)
+        if stock is not None and stock < 0:
+            logger.warning("Invalid stock: must be non-negative")
+            response = {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Stock must be non-negative'
+                    }
+                })
+            }
+            logger.info("=== CREATE PRODUCT HANDLER END ===")
+            return response
+        
         product = create_product(body, store_id)
         
         response = {
             'statusCode': STATUS_CODES['CREATED'],
             'headers': CORS_HEADERS,
-            'body': json.dumps({'product': product})
+            'body': json.dumps({'product': product}, default=decimal_default)
         }
         
         logger.info("=== CREATE PRODUCT HANDLER END ===")
@@ -743,7 +1029,21 @@ def handle_update_product(event, product_id, body):
     logger.info("=== UPDATE PRODUCT HANDLER START ===")
     try:
         # For now, use a mock store_id - security will be implemented later
-        store_id = "mock-store-id"
+        store_id = extract_store_id_from_request(event, body)
+        if not store_id:
+            response = {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Store ID is required'
+                    }
+                })
+            }
+            logger.info("=== UPDATE PRODUCT HANDLER END ===")
+            return response
+
         logger.info(f"Updating product ID: {product_id} for store ID: {store_id}")
         logger.info(f"Update data: {json.dumps(body, default=str)}")
         
@@ -791,7 +1091,7 @@ def handle_update_product(event, product_id, body):
         response = {
             'statusCode': STATUS_CODES['OK'],
             'headers': CORS_HEADERS,
-            'body': json.dumps({'product': product})
+            'body': json.dumps({'product': product}, default=decimal_default)
         }
         
         logger.info("=== UPDATE PRODUCT HANDLER END ===")
@@ -815,7 +1115,21 @@ def handle_delete_product(event, product_id):
     logger.info("=== DELETE PRODUCT HANDLER START ===")
     try:
         # For now, use a mock store_id - security will be implemented later
-        store_id = "mock-store-id"
+        store_id = extract_store_id_from_request(event, {}) # No body for delete
+        if not store_id:
+            response = {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'Store ID is required'
+                    }
+                })
+            }
+            logger.info("=== DELETE PRODUCT HANDLER END ===")
+            return response
+
         logger.info(f"Deleting product ID: {product_id} for store ID: {store_id}")
         
         product = get_product_by_id(product_id)
@@ -851,6 +1165,50 @@ def handle_delete_product(event, product_id):
     except Exception as e:
         logger.error(f"Delete product error: {str(e)}", exc_info=True)
         logger.info("=== DELETE PRODUCT HANDLER END ===")
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        } 
+
+def handle_get_product_by_store_and_available_product(store_id, available_product_id):
+    """Handle GET /stores/{storeId}/products/available/{availableProductId}"""
+    logger.info("=== GET PRODUCT BY STORE AND AVAILABLE PRODUCT HANDLER START ===")
+    try:
+        logger.info(f"Getting product for store ID: {store_id}, available product ID: {available_product_id}")
+        
+        product = get_product_by_store_and_available_product(store_id, available_product_id)
+        if not product:
+            logger.warning(f"Product not found for store ID: {store_id}, available product ID: {available_product_id}")
+            response = {
+                'statusCode': STATUS_CODES['NOT_FOUND'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['NOT_FOUND'],
+                        'message': 'Product not found for this store and available product combination'
+                    }
+                })
+            }
+            logger.info("=== GET PRODUCT BY STORE AND AVAILABLE PRODUCT HANDLER END ===")
+            return response
+        
+        response = {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'product': product}, default=decimal_default)
+        }
+        
+        logger.info("=== GET PRODUCT BY STORE AND AVAILABLE PRODUCT HANDLER END ===")
+        return response
+    except Exception as e:
+        logger.error(f"Get product by store and available product error: {str(e)}", exc_info=True)
+        logger.info("=== GET PRODUCT BY STORE AND AVAILABLE PRODUCT HANDLER END ===")
         return {
             'statusCode': STATUS_CODES['INTERNAL_ERROR'],
             'headers': CORS_HEADERS,

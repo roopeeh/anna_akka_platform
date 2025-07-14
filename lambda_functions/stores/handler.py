@@ -12,6 +12,41 @@ sys.path.append('..')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+def extract_user_id_from_request(event):
+    """Extract user ID from request context or headers"""
+    try:
+        # Try to get user ID from request context (API Gateway authorizer)
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check for user ID in authorizer claims
+        if authorizer:
+            user_id = authorizer.get('claims', {}).get('sub') or authorizer.get('user_id')
+            if user_id:
+                logger.info(f"Extracted user ID from authorizer: {user_id}")
+                return user_id
+        
+        # Check for user ID in headers
+        headers = event.get('headers', {}) or {}
+        user_id = headers.get('X-User-ID') or headers.get('x-user-id')
+        if user_id:
+            logger.info(f"Extracted user ID from headers: {user_id}")
+            return user_id
+        
+        # For development/testing, check for user ID in query parameters
+        query_params = event.get('queryStringParameters', {}) or {}
+        user_id = query_params.get('user_id')
+        if user_id:
+            logger.info(f"Extracted user ID from query params: {user_id}")
+            return user_id
+        
+        logger.warning("No user ID found in request context, headers, or query parameters")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting user ID: {str(e)}")
+        return None
+
 def convert_decimals(obj):
     """Convert Decimal types to regular numbers for JSON serialization"""
     if isinstance(obj, Decimal):
@@ -658,9 +693,21 @@ def handle_create_store(event, body):
     try:
         logger.info(f"Creating store with data: {json.dumps(body, default=str)}")
         
-        # For now, use a mock owner ID - security will be implemented later
-        user_id = 'mock-user-id'
-        logger.info(f"Creating store for user ID: {user_id}")
+        user_id = extract_user_id_from_request(event)
+        if not user_id:
+            logger.warning("User ID not found in request for create store")
+            response = {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+            logger.info("=== CREATE STORE HANDLER END ===")
+            return response
         
         # Validate required fields
         required_fields = ['name', 'address']
@@ -713,8 +760,22 @@ def handle_update_store(event, store_id, body):
     """Handle PUT /stores/{id}"""
     logger.info("=== UPDATE STORE HANDLER START ===")
     try:
-        # For now, use a mock owner ID - security will be implemented later
-        user_id = 'mock-user-id'
+        user_id = extract_user_id_from_request(event)
+        if not user_id:
+            logger.warning("User ID not found in request for update store")
+            response = {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+            logger.info("=== UPDATE STORE HANDLER END ===")
+            return response
+        
         logger.info(f"Updating store ID: {store_id} for user ID: {user_id}")
         logger.info(f"Update data: {json.dumps(body, default=str)}")
         
@@ -788,8 +849,22 @@ def handle_delete_store(event, store_id):
     """Handle DELETE /stores/{id}"""
     logger.info("=== DELETE STORE HANDLER START ===")
     try:
-        # For now, use a mock owner ID - security will be implemented later
-        user_id = 'mock-user-id'
+        user_id = extract_user_id_from_request(event)
+        if not user_id:
+            logger.warning("User ID not found in request for delete store")
+            response = {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+            logger.info("=== DELETE STORE HANDLER END ===")
+            return response
+        
         logger.info(f"Deleting store ID: {store_id} for user ID: {user_id}")
         
         store = get_store_by_id(store_id)
@@ -837,8 +912,22 @@ def handle_get_owner_stores(event):
     """Handle GET /stores/owner"""
     logger.info("=== GET OWNER STORES HANDLER START ===")
     try:
-        # For now, use a mock owner ID - security will be implemented later
-        user_id = 'mock-user-id'
+        user_id = extract_user_id_from_request(event)
+        if not user_id:
+            logger.warning("User ID not found in request for get owner stores")
+            response = {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+            logger.info("=== GET OWNER STORES HANDLER END ===")
+            return response
+        
         logger.info(f"Getting stores for user ID: {user_id}")
         
         stores = get_stores_by_owner(user_id)

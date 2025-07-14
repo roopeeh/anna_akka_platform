@@ -409,6 +409,48 @@ cart_table = aws.dynamodb.Table(f"{project_name}-cart-table",
     }
 )
 
+# S3 Bucket for Image Storage
+images_bucket = aws.s3.Bucket(f"{project_name}-images-bucket",
+    bucket=f"{project_name}-{environment}-images",
+    cors_rules=[{
+        "allowed_headers": ["*"],
+        "allowed_methods": ["GET", "PUT", "POST", "DELETE"],
+        "allowed_origins": ["*"],
+        "expose_headers": ["ETag"],
+        "max_age_seconds": 3000,
+    }],
+    tags={
+        "Name": f"{project_name}-images-bucket",
+        "Environment": environment,
+    }
+)
+
+# S3 Bucket Public Access Block (configure for public read access)
+s3_public_access_block = aws.s3.BucketPublicAccessBlock(f"{project_name}-images-public-access",
+    bucket=images_bucket.id,
+    block_public_acls=True,
+    block_public_policy=False,
+    ignore_public_acls=True,
+    restrict_public_buckets=False,
+)
+
+# S3 Bucket Policy for Public Read Access
+s3_bucket_policy = aws.s3.BucketPolicy(f"{project_name}-images-bucket-policy",
+    bucket=images_bucket.id,
+    policy=images_bucket.arn.apply(lambda bucket_arn: json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": f"{bucket_arn}/*"
+            }
+        ]
+    })),
+)
+
 # IAM Role for Lambda
 lambda_role = aws.iam.Role(f"{project_name}-lambda-role",
     assume_role_policy=json.dumps({
@@ -547,6 +589,38 @@ lambda_sns_policy_attachment = aws.iam.RolePolicyAttachment(f"{project_name}-lam
     policy_arn=sns_policy.arn
 )
 
+# S3 policy for image upload functionality
+s3_policy = aws.iam.Policy(f"{project_name}-s3-policy",
+    policy=pulumi.Output.all(images_bucket.arn).apply(lambda arns: json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:PutObject",
+                    "s3:PutObjectAcl",
+                    "s3:GetObject",
+                    "s3:DeleteObject",
+                    "s3:ListBucket"
+                ],
+                "Resource": [
+                    arns[0],
+                    f"{arns[0]}/*"
+                ],
+            },
+        ],
+    })),
+    tags={
+        "Name": f"{project_name}-s3-policy",
+        "Environment": environment,
+    }
+)
+
+lambda_s3_policy_attachment = aws.iam.RolePolicyAttachment(f"{project_name}-lambda-s3",
+    role=lambda_role.name,
+    policy_arn=s3_policy.arn
+)
+
 def create_lambda_function(name, handler, environment_vars=None):
     env_vars = {
         "ENVIRONMENT": environment,
@@ -642,6 +716,10 @@ products_lambda = create_lambda_function("products", "handler.handler")
 available_products_lambda = create_lambda_function("available_products", "handler.handler")
 orders_lambda = create_lambda_function("orders", "handler.handler")
 cart_lambda = create_lambda_function("cart", "handler.lambda_handler")
+image_upload_lambda = create_lambda_function("image_upload", "handler.handler", {
+    "S3_BUCKET_NAME": images_bucket.bucket,
+    "S3_BUCKET_REGION": config.get("aws:region") or "ap-south-1",
+})
 # analytics_lambda = create_lambda_function("analytics", "handler.handler")
 
 # API Gateway (create after Lambda)
@@ -740,6 +818,14 @@ cart_integration = aws.apigatewayv2.Integration(f"{project_name}-cart-integratio
     api_id=api_gateway.id,
     integration_type="AWS_PROXY",
     integration_uri=cart_lambda.invoke_arn,
+    integration_method="POST",
+    payload_format_version="2.0",
+)
+
+image_upload_integration = aws.apigatewayv2.Integration(f"{project_name}-image-upload-integration",
+    api_id=api_gateway.id,
+    integration_type="AWS_PROXY",
+    integration_uri=image_upload_lambda.invoke_arn,
     integration_method="POST",
     payload_format_version="2.0",
 )
@@ -937,6 +1023,32 @@ products_get_route = aws.apigatewayv2.Route(f"{project_name}-products-get-route"
     target=products_integration.id.apply(lambda id: f"integrations/{id}"),
 )
 
+products_post_route = aws.apigatewayv2.Route(f"{project_name}-products-post-route",
+    api_id=api_gateway.id,
+    route_key="POST /products",
+    target=products_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+# Add routes for unsupported methods to allow proper 405 responses
+products_put_collection_route = aws.apigatewayv2.Route(f"{project_name}-products-put-collection-route",
+    api_id=api_gateway.id,
+    route_key="PUT /products",
+    target=products_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+products_delete_collection_route = aws.apigatewayv2.Route(f"{project_name}-products-delete-collection-route",
+    api_id=api_gateway.id,
+    route_key="DELETE /products",
+    target=products_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+# Add OPTIONS route for CORS preflight requests
+products_options_route = aws.apigatewayv2.Route(f"{project_name}-products-options-route",
+    api_id=api_gateway.id,
+    route_key="OPTIONS /products",
+    target=products_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
 products_get_by_id_route = aws.apigatewayv2.Route(f"{project_name}-products-get-by-id-route",
     api_id=api_gateway.id,
     route_key="GET /products/{proxy+}",
@@ -964,6 +1076,13 @@ stores_products_get_route = aws.apigatewayv2.Route(f"{project_name}-stores-produ
 stores_products_post_route = aws.apigatewayv2.Route(f"{project_name}-stores-products-post-route",
     api_id=api_gateway.id,
     route_key="POST /stores/{store_id}/products",
+    target=products_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+# Add specific route for getting products by store and available product ID
+stores_products_available_get_route = aws.apigatewayv2.Route(f"{project_name}-stores-products-available-get-route",
+    api_id=api_gateway.id,
+    route_key="GET /stores/{store_id}/products/available/{available_product_id}",
     target=products_integration.id.apply(lambda id: f"integrations/{id}"),
 )
 
@@ -1066,6 +1185,32 @@ cart_delete_route = aws.apigatewayv2.Route(f"{project_name}-cart-delete-route",
     target=cart_integration.id.apply(lambda id: f"integrations/{id}"),
 )
 
+# Image Upload routes
+image_upload_post_route = aws.apigatewayv2.Route(f"{project_name}-image-upload-post-route",
+    api_id=api_gateway.id,
+    route_key="POST /images/upload",
+    target=image_upload_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+# Add routes for unsupported methods to allow proper 405 responses
+image_upload_get_route = aws.apigatewayv2.Route(f"{project_name}-image-upload-get-route",
+    api_id=api_gateway.id,
+    route_key="GET /images/upload",
+    target=image_upload_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+image_upload_put_route = aws.apigatewayv2.Route(f"{project_name}-image-upload-put-route",
+    api_id=api_gateway.id,
+    route_key="PUT /images/upload",
+    target=image_upload_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
+image_upload_delete_route = aws.apigatewayv2.Route(f"{project_name}-image-upload-delete-route",
+    api_id=api_gateway.id,
+    route_key="DELETE /images/upload",
+    target=image_upload_integration.id.apply(lambda id: f"integrations/{id}"),
+)
+
 # Create permission for auth lambda
 auth_permission = aws.lambda_.Permission(f"{project_name}-auth-permission",
     action="lambda:InvokeFunction",
@@ -1131,6 +1276,13 @@ otp_permission = aws.lambda_.Permission(f"{project_name}-otp-permission",
     source_arn=api_gateway.execution_arn.apply(lambda arn: f"{arn}/*/*"),
 )
 
+image_upload_permission = aws.lambda_.Permission(f"{project_name}-image-upload-permission",
+    action="lambda:InvokeFunction",
+    function=image_upload_lambda.name,
+    principal="apigateway.amazonaws.com",
+    source_arn=api_gateway.execution_arn.apply(lambda arn: f"{arn}/*/*"),
+)
+
 # analytics_permission = aws.lambda_.Permission(f"{project_name}-analytics-permission",
 #     action="lambda:InvokeFunction",
 #     function=analytics_lambda.name,
@@ -1154,4 +1306,7 @@ pulumi.export("products_lambda_arn", products_lambda.invoke_arn)
 pulumi.export("available_products_lambda_arn", available_products_lambda.invoke_arn)
 pulumi.export("orders_lambda_arn", orders_lambda.invoke_arn)
 pulumi.export("cart_lambda_arn", cart_lambda.invoke_arn)
+pulumi.export("image_upload_lambda_arn", image_upload_lambda.invoke_arn)
+pulumi.export("images_bucket_name", images_bucket.bucket)
+pulumi.export("images_bucket_arn", images_bucket.arn)
 # pulumi.export("analytics_lambda_arn", analytics_lambda.invoke_arn) 

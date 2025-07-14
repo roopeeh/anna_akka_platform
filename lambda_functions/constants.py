@@ -109,7 +109,7 @@ REQUIRED_FIELDS = {
 
 # Allowed Update Fields
 ALLOWED_UPDATE_FIELDS = {
-    'USER_PROFILE': ['name', 'phone', 'address'],
+    'USER_PROFILE': ['name', 'phone', 'address', 'email'],
     'STORE': ['name', 'address', 'phone', 'is_open', 'delivery_time'],
     'PRODUCT': ['name', 'description', 'price', 'unit', 'stock', 'image_url', 'category_id']
 }

@@ -78,6 +78,41 @@ CART_CONFIG = {
     'MAX_ITEMS': int(os.environ.get('CART_CONFIG_MAX_ITEMS', '50'))
 }
 
+def extract_user_id_from_request(event):
+    """Extract user ID from request context or headers"""
+    try:
+        # Try to get user ID from request context (API Gateway authorizer)
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check for user ID in authorizer claims
+        if authorizer:
+            user_id = authorizer.get('claims', {}).get('sub') or authorizer.get('user_id')
+            if user_id:
+                logger.info(f"Extracted user ID from authorizer: {user_id}")
+                return user_id
+        
+        # Check for user ID in headers
+        headers = event.get('headers', {}) or {}
+        user_id = headers.get('X-User-ID') or headers.get('x-user-id')
+        if user_id:
+            logger.info(f"Extracted user ID from headers: {user_id}")
+            return user_id
+        
+        # For development/testing, check for user ID in query parameters
+        query_params = event.get('queryStringParameters', {}) or {}
+        user_id = query_params.get('user_id')
+        if user_id:
+            logger.info(f"Extracted user ID from query params: {user_id}")
+            return user_id
+        
+        logger.warning("No user ID found in request context, headers, or query parameters")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting user ID: {str(e)}")
+        return None
+
 def get_product_by_id(product_id):
     """Get product by ID from available products catalog"""
     try:
@@ -367,8 +402,9 @@ def handle_get_cart(event):
     """Handle GET /cart"""
     logger.info("=== GET CART HANDLER START ===")
     try:
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            raise ValueError("User ID not found in request")
         logger.info(f"Getting cart for customer ID: {customer_id}")
         
         cart_data = get_cart(customer_id)
@@ -381,6 +417,19 @@ def handle_get_cart(event):
         
         logger.info("=== GET CART HANDLER END ===")
         return response
+    except ValueError as e:
+        logger.warning(f"Validation error: {str(e)}")
+        logger.info("=== GET CART HANDLER END ===")
+        return {
+            'statusCode': STATUS_CODES['BAD_REQUEST'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['VALIDATION_ERROR'],
+                    'message': str(e)
+                }
+            }, cls=DecimalEncoder)
+        }
     except Exception as e:
         logger.error(f"Get cart error: {str(e)}", exc_info=True)
         logger.info("=== GET CART HANDLER END ===")
@@ -402,8 +451,9 @@ def handle_add_to_cart(event):
         body = json.loads(event.get('body', '{}'))
         logger.info(f"Adding item to cart with data: {json.dumps(body, default=str)}")
         
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            raise ValueError("User ID not found in request")
         logger.info(f"Adding item to cart for customer ID: {customer_id}")
         
         # Validate required fields
@@ -508,8 +558,9 @@ def handle_update_cart_item(event, product_id):
         body = json.loads(event.get('body', '{}'))
         logger.info(f"Updating cart item with data: {json.dumps(body, default=str)}")
         
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            raise ValueError("User ID not found in request")
         logger.info(f"Updating cart item for customer ID: {customer_id}, product ID: {product_id}")
         
         # Validate required fields
@@ -609,8 +660,9 @@ def handle_remove_from_cart(event, product_id):
     """Handle DELETE /cart/items/{product_id}"""
     logger.info("=== REMOVE FROM CART HANDLER START ===")
     try:
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            raise ValueError("User ID not found in request")
         logger.info(f"Removing item from cart for customer ID: {customer_id}, product ID: {product_id}")
         
         # Check if item exists before removing
@@ -695,8 +747,9 @@ def handle_clear_cart(event):
     """Handle DELETE /cart"""
     logger.info("=== CLEAR CART HANDLER START ===")
     try:
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            raise ValueError("User ID not found in request")
         logger.info(f"Clearing cart for customer ID: {customer_id}")
         
         clear_cart(customer_id)
@@ -715,6 +768,19 @@ def handle_clear_cart(event):
         
         logger.info("=== CLEAR CART HANDLER END ===")
         return response
+    except ValueError as e:
+        logger.warning(f"Validation error: {str(e)}")
+        logger.info("=== CLEAR CART HANDLER END ===")
+        return {
+            'statusCode': STATUS_CODES['BAD_REQUEST'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['VALIDATION_ERROR'],
+                    'message': str(e)
+                }
+            }, cls=DecimalEncoder)
+        }
     except Exception as e:
         logger.error(f"Clear cart error: {str(e)}", exc_info=True)
         logger.info("=== CLEAR CART HANDLER END ===")

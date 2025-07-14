@@ -33,10 +33,7 @@ Content-Type: application/json
 {
   "statusCode": 200,
   "headers": {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    "Content-Type": "application/json"
   },
   "body": "{\"data\": {...}}"
 }
@@ -47,10 +44,7 @@ Content-Type: application/json
 {
   "statusCode": 400,
   "headers": {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    "Content-Type": "application/json"
   },
   "body": "{\"error\": {\"code\": \"VALIDATION_ERROR\", \"message\": \"Error description\"}}"
 }

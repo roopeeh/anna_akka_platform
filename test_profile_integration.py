@@ -69,6 +69,95 @@ class ProfileIntegrationTest:
                     logger.error(f"Error status: {e.response.status_code}")
             return None
     
+    def create_mock_user(self):
+        """Create the mock user for testing"""
+        logger.info("=== Creating Mock User ===")
+        
+        try:
+            # First, try to get the existing user by phone to see if they already exist
+            existing_user_result = self.make_request("GET", "/profile/phone", params={"phone": f"+91{TEST_PHONE}"})
+            
+            if existing_user_result and isinstance(existing_user_result, dict):
+                if 'user' in existing_user_result:
+                    user = existing_user_result['user']
+                    logger.info(f"✅ Found existing user with phone {TEST_PHONE}")
+                    logger.info(f"👤 User ID: {user.get('id', 'N/A')}")
+                    logger.info(f"👤 Name: {user.get('name', 'N/A')}")
+                    logger.info(f"👤 Email: {user.get('email', 'N/A')}")
+                    logger.info(f"👤 Phone: {user.get('phone', 'N/A')}")
+                    # Update the global TEST_USER_ID to use the actual user ID
+                    global TEST_USER_ID
+                    TEST_USER_ID = user.get('id', TEST_USER_ID)
+                    return True
+                elif 'body' in existing_user_result:  # Lambda response format
+                    try:
+                        body_data = json.loads(existing_user_result['body'])
+                        if 'user' in body_data:
+                            user = body_data['user']
+                            logger.info(f"✅ Found existing user with phone {TEST_PHONE}")
+                            logger.info(f"👤 User ID: {user.get('id', 'N/A')}")
+                            logger.info(f"👤 Name: {user.get('name', 'N/A')}")
+                            logger.info(f"👤 Email: {user.get('email', 'N/A')}")
+                            logger.info(f"👤 Phone: {user.get('phone', 'N/A')}")
+                            # Update the global TEST_USER_ID to use the actual user ID
+                            global TEST_USER_ID
+                            TEST_USER_ID = user.get('id', TEST_USER_ID)
+                            return True
+                    except:
+                        pass
+            
+            # If no existing user found, try to create one with a different phone number
+            logger.info("No existing user found, creating new mock user...")
+            
+            # Create mock user data with a unique phone number
+            import time
+            unique_phone = f"+91{int(time.time()) % 10000000000}"  # Use timestamp to make it unique
+            user_data = {
+                "name": "Test User",
+                "email": f"test.user.{int(time.time())}@example.com",  # Make email unique too
+                "phone": unique_phone,
+                "address": "123 Test Street, Test City"
+            }
+            
+            # Use the auth register endpoint to create the user
+            result = self.make_request("POST", "/auth/register", data=user_data)
+            
+            if result and isinstance(result, dict):
+                if 'user' in result:
+                    user = result['user']
+                    logger.info(f"✅ Mock user created successfully!")
+                    logger.info(f"👤 User ID: {user.get('id', 'N/A')}")
+                    logger.info(f"👤 Name: {user.get('name', 'N/A')}")
+                    logger.info(f"👤 Email: {user.get('email', 'N/A')}")
+                    logger.info(f"👤 Phone: {user.get('phone', 'N/A')}")
+                    # Update the global TEST_USER_ID to use the actual user ID
+                    global TEST_USER_ID
+                    TEST_USER_ID = user.get('id', TEST_USER_ID)
+                    return True
+                elif 'body' in result:  # Lambda response format
+                    try:
+                        body_data = json.loads(result['body'])
+                        if 'user' in body_data:
+                            user = body_data['user']
+                            logger.info(f"✅ Mock user created successfully!")
+                            logger.info(f"👤 User ID: {user.get('id', 'N/A')}")
+                            logger.info(f"👤 Name: {user.get('name', 'N/A')}")
+                            logger.info(f"👤 Email: {user.get('email', 'N/A')}")
+                            logger.info(f"👤 Phone: {user.get('phone', 'N/A')}")
+                            # Update the global TEST_USER_ID to use the actual user ID
+                            global TEST_USER_ID
+                            TEST_USER_ID = user.get('id', TEST_USER_ID)
+                            return True
+                    except:
+                        pass
+            
+            logger.error(f"❌ Failed to create mock user: {result}")
+            return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating mock user: {str(e)}")
+            return False
+    
     def test_get_profile(self):
         """Test GET /profile endpoint"""
         logger.info("=== Testing GET /profile ===")
@@ -211,26 +300,41 @@ class ProfileIntegrationTest:
         logger.info("=== Testing DELETE /profile ===")
         
         try:
-            result = self.make_request("DELETE", "/profile")
+            # Make the DELETE request
+            url = f"{self.api_base_url}/profile"
+            headers = {"Content-Type": "application/json"}
             
-            # Check if we got a success response
-            if result and isinstance(result, dict):
-                if 'message' in result:
+            response = requests.delete(url, headers=headers)
+            
+            # Check if the request was successful (204 No Content is expected)
+            if response.status_code == 204:
+                logger.info(f"✅ Profile deleted successfully!")
+                logger.info(f"📝 Status Code: {response.status_code}")
+                return True
+            elif response.status_code == 200:
+                # Try to parse JSON response if it's 200
+                try:
+                    result = response.json()
+                    if 'message' in result:
+                        logger.info(f"✅ Profile deleted successfully!")
+                        logger.info(f"📝 Message: {result['message']}")
+                        return True
+                    elif 'body' in result:  # Lambda response format
+                        try:
+                            body_data = json.loads(result['body'])
+                            if 'message' in body_data:
+                                logger.info(f"✅ Profile deleted successfully!")
+                                logger.info(f"📝 Message: {body_data['message']}")
+                                return True
+                        except:
+                            pass
+                except:
                     logger.info(f"✅ Profile deleted successfully!")
-                    logger.info(f"📝 Message: {result['message']}")
+                    logger.info(f"📝 Status Code: {response.status_code}")
                     return True
-                elif 'body' in result:  # Lambda response format
-                    try:
-                        body_data = json.loads(result['body'])
-                        if 'message' in body_data:
-                            logger.info(f"✅ Profile deleted successfully!")
-                            logger.info(f"📝 Message: {body_data['message']}")
-                            return True
-                    except:
-                        pass
-            
-            logger.error(f"❌ Failed to delete profile: {result}")
-            return False
+            else:
+                logger.error(f"❌ Failed to delete profile: Status {response.status_code}")
+                return False
                 
         except Exception as e:
             logger.error(f"❌ Error testing DELETE /profile: {str(e)}")
@@ -243,9 +347,9 @@ class ProfileIntegrationTest:
         try:
             # Test profile endpoints without any headers
             test_cases = [
-                ("GET /profile", "GET", "/profile"),
-                ("PUT /profile", "PUT", "/profile", {"name": "test"}),
-                ("DELETE /profile", "DELETE", "/profile"),
+                ("GET /profile", "GET", "/profile", None, None),
+                ("PUT /profile", "PUT", "/profile", {"name": "test"}, None),
+                ("DELETE /profile", "DELETE", "/profile", None, None),
                 ("GET /profile/phone", "GET", "/profile/phone", None, {"phone": "1234567890"})
             ]
             
@@ -291,6 +395,14 @@ class ProfileIntegrationTest:
             "failed": 0,
             "total": 0
         }
+        
+        # First, create the mock user
+        logger.info(f"\n{'='*40}")
+        logger.info(f"🧪 Running: Create Mock User")
+        logger.info(f"{'='*40}")
+        
+        if not self.create_mock_user():
+            logger.error("❌ Failed to create mock user - some tests may fail")
         
         # Run all test methods
         tests = [

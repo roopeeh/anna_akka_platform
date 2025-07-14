@@ -26,7 +26,7 @@ The dev branch is configured to deploy infrastructure in the **ap-south-1** regi
 git checkout dev
 
 # Run the deployment script
-python deploy_dev_modular.py
+python deploy_dev_fast.py
 ```
 
 ### Option 2: Using the Bash Script
@@ -69,7 +69,7 @@ pulumi up --yes --stack dev-stack-ap-south-1
 
 - `Pulumi.roopeeh-dev.yaml` - Dev stack configuration for ap-south-1
 - `deploy_dev.sh` - Bash deployment script for dev
-- `deploy_dev_modular.py` - Python deployment script for dev
+- `deploy_dev_fast.py` - Python deployment script for dev
 - `DEV_DEPLOYMENT_README.md` - This file
 
 ## 🔧 Configuration
@@ -141,13 +141,13 @@ pulumi stack output users_table --stack dev-stack-ap-south-1
 
 2. **Preview changes**
    ```bash
-   python deploy_dev_modular.py
+   python deploy_dev_fast.py
    # Choose option 1: Preview changes
    ```
 
 3. **Deploy infrastructure**
    ```bash
-   python deploy_dev_modular.py
+   python deploy_dev_fast.py
    # Choose option 2: Deploy infrastructure
    ```
 
@@ -181,7 +181,7 @@ python test_complete_user_flow.py
 To destroy the dev infrastructure:
 
 ```bash
-python deploy_dev_modular.py
+python deploy_dev_fast.py
 # Choose option 3: Destroy infrastructure
 ```
 

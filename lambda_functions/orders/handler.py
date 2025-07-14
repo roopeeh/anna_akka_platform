@@ -12,6 +12,41 @@ sys.path.append('..')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+def extract_user_id_from_request(event):
+    """Extract user ID from request context or headers"""
+    try:
+        # Try to get user ID from request context (API Gateway authorizer)
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check for user ID in authorizer claims
+        if authorizer:
+            user_id = authorizer.get('claims', {}).get('sub') or authorizer.get('user_id')
+            if user_id:
+                logger.info(f"Extracted user ID from authorizer: {user_id}")
+                return user_id
+        
+        # Check for user ID in headers
+        headers = event.get('headers', {}) or {}
+        user_id = headers.get('X-User-ID') or headers.get('x-user-id')
+        if user_id:
+            logger.info(f"Extracted user ID from headers: {user_id}")
+            return user_id
+        
+        # For development/testing, check for user ID in query parameters
+        query_params = event.get('queryStringParameters', {}) or {}
+        user_id = query_params.get('user_id')
+        if user_id:
+            logger.info(f"Extracted user ID from query params: {user_id}")
+            return user_id
+        
+        logger.warning("No user ID found in request context, headers, or query parameters")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting user ID: {str(e)}")
+        return None
+
 def convert_decimals(obj):
     """Convert Decimal types to regular numbers for JSON serialization"""
     if isinstance(obj, Decimal):
@@ -26,7 +61,6 @@ def convert_decimals(obj):
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
 orders_table = dynamodb.Table(os.environ['ORDERS_TABLE'])  # type: ignore
-order_items_table = dynamodb.Table(os.environ['ORDER_ITEMS_TABLE'])     # type: ignore
 cart_table = dynamodb.Table(os.environ['CART_TABLE'])  # type: ignore
 
 # Get constants from environment variables
@@ -93,6 +127,7 @@ def create_order(order_data, customer_id):
         'delivery_address': order_data['delivery_address'],
         'status': ORDER_STATUS['PENDING'],
         'total_amount': order_data.get('total_amount', 0),
+        'products': order_data.get('products', []),  # Store complete product information
         'created_at': timestamp,
         'updated_at': timestamp
     }
@@ -126,6 +161,41 @@ def get_orders_by_customer(customer_id, page=1, limit=10):
     orders = response.get('Items', [])
     
     logger.info(f"Found {len(orders)} orders for customer {customer_id}")
+    
+    # Simple pagination
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_orders = orders[start_idx:end_idx]
+    
+    result = {
+        'orders': paginated_orders,
+        'pagination': {
+            'current_page': page,
+            'total_pages': (len(orders) + limit - 1) // limit,
+            'total_items': len(orders),
+            'items_per_page': limit
+        }
+    }
+    
+    logger.info(f"Returning {len(paginated_orders)} orders for page {page}")
+    return result
+
+def get_orders_by_store(store_id, page=1, limit=10):
+    """Get orders for a specific store"""
+    logger.info(f"Getting orders for store ID: {store_id}, page: {page}, limit: {limit}")
+    
+    query_kwargs = {
+        'IndexName': INDEX_NAMES['STORE_ID_INDEX'],
+        'KeyConditionExpression': 'store_id = :store_id',
+        'ExpressionAttributeValues': {':store_id': store_id}
+    }
+    
+    logger.info(f"Query kwargs: {json.dumps(query_kwargs, default=str)}")
+    
+    response = orders_table.query(**query_kwargs)
+    orders = response.get('Items', [])
+    
+    logger.info(f"Found {len(orders)} orders for store {store_id}")
     
     # Simple pagination
     start_idx = (page - 1) * limit
@@ -204,23 +274,40 @@ def create_order_from_cart(customer_id, store_id, delivery_address, notes=None):
     if not cart_items:
         raise ValueError("No items in cart for this store")
     
-    # Calculate total amount
+    # Calculate total amount and prepare product information
     total_amount = 0
     order_items = []
+    products_info = []
     
     for item in cart_items:
         product_id = item.get('product_id')
         quantity = item.get('quantity', 0)
         price = item.get('price', 0)
+        product_name = item.get('product_name', '')
+        unit = item.get('unit', 'piece')
+        special_notes = item.get('special_notes', '')
         
         total_amount += price * quantity
         
+        # Prepare order item for order_items table
         order_items.append({
             'product_id': product_id,
             'quantity': quantity,
             'price': price,
-            'product_name': item.get('product_name', ''),
-            'unit': item.get('unit', 'piece')
+            'product_name': product_name,
+            'unit': unit,
+            'special_notes': special_notes
+        })
+        
+        # Prepare product info for order table
+        products_info.append({
+            'product_id': product_id,
+            'product_name': product_name,
+            'quantity': quantity,
+            'price': price,
+            'unit': unit,
+            'special_notes': special_notes,
+            'total': price * quantity
         })
     
     # Create order
@@ -228,45 +315,21 @@ def create_order_from_cart(customer_id, store_id, delivery_address, notes=None):
         'store_id': store_id,
         'delivery_address': delivery_address,
         'total_amount': total_amount,
+        'products': products_info,  # Store complete product information
         'notes': notes
     }
     
     order = create_order(order_data, customer_id)
-    
-    # Create order items
-    for item in order_items:
-        create_order_item(order['id'], item)
     
     # Clear cart items for this store
     clear_cart_items_for_store(customer_id, store_id)
     
     return {
         'order': order,
-        'items': order_items,
         'total_amount': total_amount
     }
 
-def create_order_item(order_id, item_data):
-    """Create order item"""
-    logger.info(f"Creating order item for order: {order_id}")
-    
-    item_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat()
-    
-    order_item = {
-        'id': item_id,
-        'order_id': order_id,
-        'product_id': item_data['product_id'],
-        'quantity': item_data['quantity'],
-        'price': item_data['price'],
-        'product_name': item_data.get('product_name', ''),
-        'unit': item_data.get('unit', 'piece'),
-        'created_at': timestamp
-    }
-    
-    order_items_table.put_item(Item=order_item)
-    logger.info(f"Order item created successfully: {item_id}")
-    return order_item
+
 
 def clear_cart_items_for_store(customer_id, store_id):
     """Clear cart items for a specific store"""
@@ -343,10 +406,18 @@ def handler(event, context):
         # Route based on path and method
         # Handle both with and without stage prefix (/dev/orders or /orders)
         if (path == '/orders' or path.endswith('/orders')) and method == 'GET':
-            logger.info("Routing to get orders handler")
-            response = handle_get_orders(event, query_params)
-            logger.info(f"Get orders response: {json.dumps(response, default=str)}")
-            return response
+            # Check if this is a store orders request
+            store_id = query_params.get('store_id')
+            if store_id:
+                logger.info("Routing to get store orders handler")
+                response = handle_get_store_orders(event, query_params)
+                logger.info(f"Get store orders response: {json.dumps(response, default=str)}")
+                return response
+            else:
+                logger.info("Routing to get orders handler")
+                response = handle_get_orders(event, query_params)
+                logger.info(f"Get orders response: {json.dumps(response, default=str)}")
+                return response
         elif ('/orders/' in path) and method == 'GET':
             # Extract order_id from path, handling both /orders/{id} and /dev/orders/{id}
             path_parts = path.split('/')
@@ -514,12 +585,92 @@ def handler(event, context):
     finally:
         logger.info("=== ORDERS HANDLER END ===")
 
+def handle_get_store_orders(event, query_params):
+    """Handle GET /orders?store_id={store_id}"""
+    logger.info("=== GET STORE ORDERS HANDLER START ===")
+    try:
+        # Extract user ID from request
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            logger.warning("User ID not found in request, cannot get store orders.")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
+        store_id = query_params.get('store_id')
+        if not store_id:
+            logger.warning("Store ID not provided in query parameters")
+            return {
+                'statusCode': STATUS_CODES['BAD_REQUEST'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['VALIDATION_ERROR'],
+                        'message': 'store_id is required'
+                    }
+                })
+            }
+        
+        logger.info(f"Getting orders for store ID: {store_id}")
+        
+        page = int(query_params.get('page', 1))
+        limit = int(query_params.get('limit', 10))
+        
+        logger.info(f"Getting store orders with pagination - page: {page}, limit: {limit}")
+        
+        result = get_orders_by_store(store_id, page, limit)
+        
+        # Convert Decimal types for JSON serialization
+        result = convert_decimals(result)
+        
+        response = {
+            'statusCode': STATUS_CODES['OK'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps(result)
+        }
+        
+        logger.info("=== GET STORE ORDERS HANDLER END ===")
+        return response
+    except Exception as e:
+        logger.error(f"Get store orders error: {str(e)}", exc_info=True)
+        logger.info("=== GET STORE ORDERS HANDLER END ===")
+        return {
+            'statusCode': STATUS_CODES['INTERNAL_ERROR'],
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'error': {
+                    'code': ERROR_CODES['INTERNAL_ERROR'],
+                    'message': str(e)
+                }
+            })
+        }
+
 def handle_get_orders(event, query_params):
     """Handle GET /orders"""
     logger.info("=== GET ORDERS HANDLER START ===")
     try:
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        # Extract user ID from request
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            logger.warning("User ID not found in request, cannot get orders.")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Getting orders for customer ID: {customer_id}")
         
         page = int(query_params.get('page', 1))
@@ -558,8 +709,21 @@ def handle_get_order(event, order_id):
     """Handle GET /orders/{id}"""
     logger.info("=== GET ORDER HANDLER START ===")
     try:
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        # Extract user ID from request
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            logger.warning("User ID not found in request, cannot get order.")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Getting order ID: {order_id} for customer ID: {customer_id}")
         
         order = get_order_by_id(order_id)
@@ -609,8 +773,21 @@ def handle_create_order(event, body):
     try:
         logger.info(f"Creating order with data: {json.dumps(body, default=str)}")
         
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        # Extract user ID from request
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            logger.warning("User ID not found in request, cannot create order.")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Creating order for customer ID: {customer_id}")
         
         # Check if creating order from cart
@@ -674,9 +851,9 @@ def handle_create_order(event, body):
                 logger.info("=== CREATE ORDER HANDLER END ===")
                 return response
         else:
-            # Create order with manual items (existing functionality)
+            # Create order with manual items
             # Validate required fields
-            required_fields = ['store_id', 'delivery_address']
+            required_fields = ['store_id', 'delivery_address', 'items']
             for field in required_fields:
                 if not body.get(field):
                     logger.warning(f"Missing required field: {field}")
@@ -695,7 +872,43 @@ def handle_create_order(event, body):
             
             logger.info("All required fields present")
             
-            order = create_order(body, customer_id)
+            # Extract items and prepare product information
+            items = body.get('items', [])
+            products_info = []
+            total_amount = 0
+            
+            for item in items:
+                product_id = item.get('product_id')
+                product_name = item.get('product_name', '')
+                quantity = item.get('quantity', 0)
+                price = item.get('price', 0)
+                unit = item.get('unit', 'piece')
+                special_notes = item.get('special_notes', '')
+                
+                item_total = price * quantity
+                total_amount += item_total
+                
+                # Prepare product info for order table
+                products_info.append({
+                    'product_id': product_id,
+                    'product_name': product_name,
+                    'quantity': quantity,
+                    'price': price,
+                    'unit': unit,
+                    'special_notes': special_notes,
+                    'total': item_total
+                })
+            
+            # Create order with complete product information
+            order_data = {
+                'store_id': body['store_id'],
+                'delivery_address': body['delivery_address'],
+                'total_amount': total_amount,
+                'products': products_info,
+                'notes': body.get('notes')
+            }
+            
+            order = create_order(order_data, customer_id)
             
             # Convert Decimal types for JSON serialization
             order = convert_decimals(order)
@@ -703,7 +916,10 @@ def handle_create_order(event, body):
             response = {
                 'statusCode': STATUS_CODES['CREATED'],
                 'headers': CORS_HEADERS,
-                'body': json.dumps({'order': order})
+                'body': json.dumps({
+                    'message': 'Order created successfully with manual items',
+                    'order': order
+                })
             }
             
             logger.info("=== CREATE ORDER HANDLER END ===")
@@ -726,8 +942,21 @@ def handle_update_order_status(event, order_id, body):
     """Handle PUT /orders/{id}/status"""
     logger.info("=== UPDATE ORDER STATUS HANDLER START ===")
     try:
-        # For now, use a mock customer ID - security will be implemented later
-        customer_id = 'mock-customer-id'
+        # Extract user ID from request
+        customer_id = extract_user_id_from_request(event)
+        if not customer_id:
+            logger.warning("User ID not found in request, cannot update order status.")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Updating order status for order ID: {order_id}, customer ID: {customer_id}")
         logger.info(f"Status update data: {json.dumps(body, default=str)}")
         

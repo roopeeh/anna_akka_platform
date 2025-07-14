@@ -57,13 +57,6 @@ USER_TYPES = {
 # Valid roles that can be assigned to users
 VALID_ROLES = ['customer', 'vendor', 'admin']
 
-MOCK_VALUES = {
-    'USER_ID': os.environ.get('MOCK_VALUES_USER_ID', 'mock-user-id'),
-    'OWNER_ID': os.environ.get('MOCK_VALUES_OWNER_ID', 'mock-owner-id'),
-    'STORE_ID': os.environ.get('MOCK_VALUES_STORE_ID', 'mock-store-id'),
-    'CUSTOMER_ID': os.environ.get('MOCK_VALUES_CUSTOMER_ID', 'mock-customer-id')
-}
-
 def normalize_phone(phone):
     """Normalize phone number: strip whitespace, ensure leading +, and collapse spaces."""
     if not phone:

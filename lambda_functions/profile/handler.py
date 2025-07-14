@@ -2,6 +2,7 @@ import json
 import os
 import boto3
 from datetime import datetime
+import uuid
 import logging
 import re
 import sys
@@ -60,6 +61,41 @@ def normalize_phone(phone):
     if not phone.startswith('+'):
         phone = '+' + phone
     return phone
+
+def extract_user_id_from_request(event):
+    """Extract user ID from request context or headers"""
+    try:
+        # Try to get user ID from request context (API Gateway authorizer)
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check for user ID in authorizer claims
+        if authorizer:
+            user_id = authorizer.get('claims', {}).get('sub') or authorizer.get('user_id')
+            if user_id:
+                logger.info(f"Extracted user ID from authorizer: {user_id}")
+                return user_id
+        
+        # Check for user ID in headers
+        headers = event.get('headers', {}) or {}
+        user_id = headers.get('X-User-ID') or headers.get('x-user-id')
+        if user_id:
+            logger.info(f"Extracted user ID from headers: {user_id}")
+            return user_id
+        
+        # For development/testing, check for user ID in query parameters
+        query_params = event.get('queryStringParameters', {}) or {}
+        user_id = query_params.get('user_id')
+        if user_id:
+            logger.info(f"Extracted user ID from query params: {user_id}")
+            return user_id
+        
+        logger.warning("No user ID found in request context, headers, or query parameters")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting user ID: {str(e)}")
+        return None
 
 # Remove the old extract_user_from_token function - now using the one from constants
 
@@ -224,8 +260,21 @@ def handle_get_profile(event):
     """Handle GET /profile"""
     logger.info("=== GET PROFILE HANDLER START ===")
     try:
-        # For now, use a mock user ID - security will be implemented later
-        user_id = 'mock-user-id'
+        user_id = extract_user_id_from_request(event)
+        
+        if not user_id:
+            logger.warning("User ID not found in request for get profile")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Getting profile for user ID: {user_id}")
         
         user = get_user_by_id(user_id)
@@ -364,8 +413,21 @@ def handle_update_profile(event, body):
     """Handle PUT /profile"""
     logger.info("=== UPDATE PROFILE HANDLER START ===")
     try:
-        # For now, use a mock user ID - security will be implemented later
-        user_id = 'mock-user-id'
+        user_id = extract_user_id_from_request(event)
+        
+        if not user_id:
+            logger.warning("User ID not found in request for update profile")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Updating profile for user ID: {user_id}")
         logger.info(f"Update request body: {json.dumps(body, default=str)}")
         
@@ -438,8 +500,21 @@ def handle_delete_profile(event):
     """Handle DELETE /profile"""
     logger.info("=== DELETE PROFILE HANDLER START ===")
     try:
-        # For now, use a mock user ID - security will be implemented later
-        user_id = 'mock-user-id'
+        user_id = extract_user_id_from_request(event)
+        
+        if not user_id:
+            logger.warning("User ID not found in request for delete profile")
+            return {
+                'statusCode': STATUS_CODES['UNAUTHORIZED'],
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': {
+                        'code': ERROR_CODES['UNAUTHORIZED'],
+                        'message': 'User not authenticated'
+                    }
+                })
+            }
+        
         logger.info(f"Deleting profile for user ID: {user_id}")
         
         deleted_user = delete_user_profile(user_id)
